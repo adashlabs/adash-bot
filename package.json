@@ -1,0 +1,19 @@
+{
+  "name": "adash",
+  "version": "1.0.0",
+  "description": "adash - discord.js v14 prefix bot with sqlite + sharding",
+  "main": "src/sharder.js",
+  "scripts": {
+    "start": "node src/sharder.js",
+    "dev": "node src/index.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.5.0",
+    "discord.js": "^14.27.0",
+    "dotenv": "^16.6.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}
