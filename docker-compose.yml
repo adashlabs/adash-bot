@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: adash-bot
     env_file:
       - .env
     environment:

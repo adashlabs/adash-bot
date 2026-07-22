@@ -38,26 +38,22 @@
 
 Bot, **SQLite WAL (Write-Ahead Logging)** modunu kullanır. Güncellemelerde ve konteyner yeniden başlatmalarında veri kaybı yaşanmaması için veritabanının `/app/data` dizininde kalıcı olarak saklanması gerekir.
 
-### Docker Compose ve Dokploy Dağıtımı — Giriş Gerektirmez
-1. Bu deponun `compose.yaml` dosyası her zaman yerel `Dockerfile` ile imajı derler. GHCR erişimi veya Docker registry hesabı gerekmez.
-2. Dokploy panelinde **Create Application** oluşturun; Build Type olarak **Docker Compose** seçin ve depodaki `compose.yaml` dosyasını kullanın.
-3. Dokploy **Environment Variables** bölümüne `.env.example` içindeki değerleri, özellikle `DISCORD_TOKEN` değerini ekleyin.
-4. **Persistent Volumes** altında `/app/data` mount path'ine kalıcı bir volume bağlayın. Compose varsayılanı `adash-data` volume'üdür.
-5. Deploy edin. Yeni kaynak kodu geldiğinde Dokploy imajı yeniden derler; `/app/data` volume'ü SQLite verisini korur.
+### Docker Compose ve Dokploy Dağıtımı — Registry Gerektirmez
+1. Compose dosyası yerel `Dockerfile` ile imajı derler; GHCR, Docker Hub veya registry girişi gerekmez.
+2. Dokploy panelinde **Create Application** oluşturun ve Build Type olarak **Docker Compose** seçin.
+3. Compose dosya adı olarak `docker-compose.yml` kullanın. Dokploy bu standart dosya adını otomatik algılar.
+4. GitHub repository olarak `https://github.com/adashlabs/adash-bot.git` adresini bağlayın.
+5. **Environment Variables** bölümüne `.env.example` içindeki değerleri, özellikle `DISCORD_TOKEN` değerini ekleyin.
+6. **Persistent Volumes** altında `/app/data` mount path'ine kalıcı bir volume bağlayın. Compose dosyası `adash-data` volume'ünü zaten tanımlar.
+7. Deploy edin. Dokploy Dockerfile'ı build eder; `/app/data` volume'ü SQLite verisini korur.
 
-### GHCR İmajı
-
-`main` dalına yapılan her push, [GitHub Actions](.github/workflows/publish-ghcr.yml) ile `ghcr.io/adashlabs/adash-bot:latest` imajını da yayımlar. Bu imaj, GHCR paket görünürlüğü **Public** yapıldığında doğrudan çekilebilir. Varsayılan Compose akışı GHCR imajına bağlı değildir; bu nedenle private package veya registry kimlik doğrulama hatası dağıtımı engellemez.
-
-### Standart Docker Compose Kurulumu
+### Docker Compose Kurulumu
 ```bash
-# Değişkenler dosyasını oluşturun ve Discord Token'ınızı girin
 cp .env.example .env
-nano .env
-
-# Kaynak koddan imajı derleyip başlatın
-docker compose up -d --build
+# .env içine DISCORD_TOKEN yaz
+docker compose -f docker-compose.yml up -d --build
 ```
+
 
 ### Kalıcı Veri Dizinleri
 - `adash-data:/app/data`: Sunucu ayarları, uyarilar, moderasyon logları, ticket kayıtları, çekilişler ve oyun durumları `adash.db` dosyasında güvenle saklanır.
