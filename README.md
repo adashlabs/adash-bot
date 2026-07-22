@@ -38,15 +38,13 @@
 
 Bot, **SQLite WAL (Write-Ahead Logging)** modunu kullanır. Güncellemelerde ve konteyner yeniden başlatmalarında veri kaybı yaşanmaması için veritabanının `/app/data` dizininde kalıcı olarak saklanması gerekir.
 
-### Dokploy ile Dağıtım (Dokploy Setup)
-1. Dokploy paneline giriş yapın ve **Create Application** düğmesine tıklayın.
-2. **Repository** ayarlarından botun Git deposunu bağlayın.
-3. Build Türünü **Docker Compose** olarak seçin ve deponuzdaki `compose.yaml` dosyasını gösterin.
-4. **Environment Variables** bölümüne `.env.example` dosyasındaki değişkenleri ekleyin (Örn: `DISCORD_TOKEN`).
-5. **Persistent Volumes** sekmesinden şu volume tanımını ekleyin veya doğrulayın:
-   - **Type:** Volume / Mount Path
-   - **Mount Path:** `/app/data`
-6. **Deploy** düğmesine basarak dağıtımı başlatın. Dokploy, veri kaybı olmadan botu çalıştıracaktır.
+### GHCR ile Docker Compose ve Dokploy Dağıtımı
+1. `main` dalına yapılan her push, [GitHub Actions](.github/workflows/publish-ghcr.yml) ile `ghcr.io/adashlabs/adash-bot:latest` imajını yayımlar.
+2. İlk yayımdan sonra GitHub deposunun **Packages** alanından `adash-bot` paketini **Public** yapın. Özel paket kullanacaksanız Dokploy/Docker sunucusunda GHCR oturumu açılması gerekir.
+3. Dokploy panelinde **Create Application** oluşturun; Build Type olarak **Docker Compose** seçin ve depodaki `compose.yaml` dosyasını kullanın.
+4. Dokploy **Environment Variables** bölümüne `.env.example` içindeki değerleri, özellikle `DISCORD_TOKEN` değerini ekleyin.
+5. **Persistent Volumes** altında `/app/data` mount path'ine kalıcı bir volume bağlayın. Compose varsayılanı `adash-data` volume'üdür.
+6. Deploy edin. `pull_policy: always`, her dağıtımda GHCR'daki güncel imajı alır; `/app/data` volume'ü SQLite verisini korur.
 
 ### Standart Docker Compose Kurulumu
 ```bash
@@ -54,9 +52,12 @@ Bot, **SQLite WAL (Write-Ahead Logging)** modunu kullanır. Güncellemelerde ve 
 cp .env.example .env
 nano .env
 
-# Konteyneri arka planda build edin ve başlatın
-docker compose up -d --build
+# GHCR'dan en güncel imajı çekip başlatın
+docker compose pull
+docker compose up -d
 ```
+
+Varsayılan imaj `ghcr.io/adashlabs/adash-bot:latest`'tir. Başka bir sürüm, SHA etiketi veya kendi registry'niz için `.env` içine örneğin `ADASH_IMAGE=ghcr.io/adashlabs/adash-bot:sha-<commit>` yazabilirsiniz.
 
 ### Kalıcı Veri Dizinleri
 - `adash-data:/app/data`: Sunucu ayarları, uyarilar, moderasyon logları, ticket kayıtları, çekilişler ve oyun durumları `adash.db` dosyasında güvenle saklanır.
