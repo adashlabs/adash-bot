@@ -1,0 +1,16 @@
+services:
+  adash:
+    build: .
+    image: adash-bot:latest
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      ADASH_DB_PATH: /app/data/adash.db
+    volumes:
+      - adash-data:/app/data
+    restart: unless-stopped
+    init: true
+
+volumes:
+  adash-data:
