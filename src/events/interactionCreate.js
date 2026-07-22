@@ -213,6 +213,9 @@ async function handleEmbedBuilder(interaction) {
   if (action === 'send') {
     const channel = await interaction.guild.channels.fetch(draft.channelId).catch(() => null);
     if (!channel?.isTextBased()) return reject(interaction, 'hedef kanal artık kullanılamıyor.');
+    if (!draft.title && !draft.description && !draft.fields?.length && !draft.image && !draft.thumbnail) {
+      return reject(interaction, 'göndermeden önce başlık, açıklama, alan veya görsel eklemelisin.');
+    }
     const sent = await channel.send({ embeds: [embedBuilder.buildEmbed(draft)] }).catch(() => null);
     if (!sent) return reject(interaction, 'embed gönderilemedi. Botun bu kanalda `Mesaj Gönder` ve `Embed Bağlantıları` yetkilerini kontrol et.');
     embedBuilder.drafts.delete(ownerId);
@@ -225,7 +228,7 @@ async function handleEmbedModal(interaction) {
   if (ownerId !== interaction.user.id) return reject(interaction, 'bu embed paneli başka bir kullanıcıya ait.');
   const draft = embedBuilder.getDraft(ownerId);
   if (!draft) return reject(interaction, 'embed taslağının süresi doldu. `a!embed` ile yeniden aç.');
-  const extras = interaction.fields.getTextInputValue('extras').split('\\n');
+  const extras = interaction.fields.getTextInputValue('extras').split('\n');
   draft.title = interaction.fields.getTextInputValue('title').trim();
   draft.description = interaction.fields.getTextInputValue('description').trim();
   draft.color = embedBuilder.parseColor(interaction.fields.getTextInputValue('color'));
@@ -234,9 +237,9 @@ async function handleEmbedModal(interaction) {
   draft.image = extras[1]?.trim() || '';
   draft.thumbnail = extras[2]?.trim() || '';
   draft.author = extras[3]?.trim() || '';
-  draft.fields = embedBuilder.parseFields(extras.slice(4).join('\\n'));
+  draft.fields = embedBuilder.parseFields(extras.slice(4).join('\n'));
   draft.updatedAt = Date.now();
-  await interaction.reply({ content: 'Embed önizlemesi hazır. İstersen tekrar düzenle veya kanala gönder.', embeds: [embedBuilder.buildEmbed(draft)], components: [embedBuilder.buildControls(ownerId)], flags: EPHEMERAL });
+  await interaction.reply({ content: 'Embed önizlemesi hazır. İstersen tekrar düzenle veya kanala gönder.', embeds: [embedBuilder.buildEmbed(draft, true)], components: [embedBuilder.buildControls(ownerId)], flags: EPHEMERAL });
 }
 
 

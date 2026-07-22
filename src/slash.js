@@ -12,6 +12,7 @@ const definitions = [
   new SlashCommandBuilder().setName('yardim').setDescription('Etkileşimli yardım menüsünü açar.'),
   new SlashCommandBuilder().setName('kurulum').setDescription('Gelişmiş sunucu kurulum panelini açar.').setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   new SlashCommandBuilder().setName('ping').setDescription('Botun bağlantı ve sistem durumunu gösterir.'),
+  new SlashCommandBuilder().setName('embed').setDescription('Yöneticiler için embed oluşturucu açar.').setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   new SlashCommandBuilder().setName('sunucu').setDescription('Sunucu bilgilerini gösterir.'),
   user(new SlashCommandBuilder().setName('kullanici').setDescription('Kullanıcı bilgilerini gösterir.')),
   user(new SlashCommandBuilder().setName('avatar').setDescription('Kullanıcının avatarını gösterir.')),
@@ -75,6 +76,7 @@ const mappings = {
   tdk: ['tdk', (i) => [i.options.getString('kelime')]],
   webara: ['wsearch', (i) => [i.options.getString('sorgu')]],
   zar: ['roll', (i) => [i.options.getString('zar')].filter(Boolean)],
+  embed: ['embed', () => []],
   ticketsetup: ['ticketsetup', (i) => [
     i.options.getChannel('kategori').id,
     i.options.getChannel('panel_kanali').id,

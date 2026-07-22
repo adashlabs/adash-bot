@@ -28,7 +28,7 @@ function parseFields(value) {
   });
 }
 
-function buildEmbed(draft) {
+function buildEmbed(draft, preview = false) {
   const embed = new EmbedBuilder().setColor(parseColor(draft.color)).setTimestamp();
   if (draft.title) embed.setTitle(draft.title);
   if (draft.description) embed.setDescription(draft.description);
@@ -38,6 +38,9 @@ function buildEmbed(draft) {
   if (draft.thumbnail && /^https?:\/\//i.test(draft.thumbnail)) embed.setThumbnail(draft.thumbnail);
   if (draft.author) embed.setAuthor({ name: draft.author });
   if (draft.fields?.length) embed.addFields(draft.fields);
+  if (preview && !draft.title && !draft.description && !draft.fields?.length && !draft.image && !draft.thumbnail) {
+    embed.setDescription('Embed önizlemesi hazır. İçeriği düzenlemek için aşağıdaki butona bas.');
+  }
   return embed;
 }
 
@@ -98,7 +101,7 @@ module.exports = {
       return message.reply('bu komutu yalnızca `Sunucuyu Yönet` yetkisi olan yöneticiler kullanabilir.');
     }
     const draft = createDraft(message.author.id, message.channel);
-    const panel = await message.reply({ embeds: [buildEmbed(draft)], components: [buildControls(message.author.id)] });
+    const panel = await message.reply({ embeds: [buildEmbed(draft, true)], components: [buildControls(message.author.id)] });
     draft.panelMessageId = panel.id;
     return panel;
   }
