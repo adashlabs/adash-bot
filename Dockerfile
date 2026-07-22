@@ -8,7 +8,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV ADASH_DB_PATH=/app/data/adash.db
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends gosu tini \
+  && apt-get install -y --no-install-recommends gosu tini fonts-dejavu \
   && rm -rf /var/lib/apt/lists/* \
   && mkdir -p /app/data \
   && chown -R node:node /app

@@ -1,13 +1,18 @@
-const { createCanvas, loadImage } = require('@napi-rs/canvas');
+const fs = require('node:fs');
+const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
+
+const FONT_PATH = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
+const FONT_FAMILY = fs.existsSync(FONT_PATH) ? 'AdashSans' : 'Arial';
+if (FONT_FAMILY === 'AdashSans') GlobalFonts.registerFromPath(FONT_PATH, FONT_FAMILY);
 
 function fitText(ctx, text, maxWidth, startSize = 58, minSize = 28) {
   let size = startSize;
   while (size > minSize) {
-    ctx.font = `700 ${size}px sans-serif`;
+    ctx.font = `700 ${size}px "${FONT_FAMILY}"`;
     if (ctx.measureText(text).width <= maxWidth) return size;
     size -= 2;
   }
-  ctx.font = `700 ${minSize}px sans-serif`;
+  ctx.font = `700 ${minSize}px "${FONT_FAMILY}"`;
   return minSize;
 }
 
@@ -86,7 +91,7 @@ async function createMemberCard(member, type = 'welcome') {
 
   const headline = welcome ? 'HOŞ GELDİN' : 'GÖRÜŞMEK ÜZERE';
   ctx.fillStyle = accent;
-  ctx.font = '700 30px sans-serif';
+  ctx.font = `700 30px "${FONT_FAMILY}"`;
   ctx.fillText(headline, textX, 130);
 
   const displayName = member.user.globalName || member.user.username || 'Yeni üye';
@@ -100,7 +105,7 @@ async function createMemberCard(member, type = 'welcome') {
   ctx.fillText(ellipsis(ctx, guildName, textWidth), textX, 265);
 
   ctx.fillStyle = '#94A3B8';
-  ctx.font = '500 25px sans-serif';
+  ctx.font = `500 25px "${FONT_FAMILY}"`;
   const detail = welcome
     ? `Seninle birlikte ${member.guild.memberCount || 0} üyeyiz.`
     : `Topluluğumuzda ${member.guild.memberCount || 0} üye kaldı.`;
