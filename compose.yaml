@@ -1,7 +1,6 @@
 services:
   adash:
-    image: ${ADASH_IMAGE:-ghcr.io/adashlabs/adash-bot:latest}
-    pull_policy: always
+    build: .
     env_file:
       - .env
     environment:
