@@ -3,11 +3,11 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
 function fitText(ctx, text, maxWidth, startSize = 58, minSize = 28) {
   let size = startSize;
   while (size > minSize) {
-    ctx.font = `700 ${size}px Arial`;
+    ctx.font = `700 ${size}px sans-serif`;
     if (ctx.measureText(text).width <= maxWidth) return size;
     size -= 2;
   }
-  ctx.font = `700 ${minSize}px Arial`;
+  ctx.font = `700 ${minSize}px sans-serif`;
   return minSize;
 }
 
@@ -86,7 +86,7 @@ async function createMemberCard(member, type = 'welcome') {
 
   const headline = welcome ? 'HOŞ GELDİN' : 'GÖRÜŞMEK ÜZERE';
   ctx.fillStyle = accent;
-  ctx.font = '700 30px Arial';
+  ctx.font = '700 30px sans-serif';
   ctx.fillText(headline, textX, 130);
 
   const displayName = member.user.globalName || member.user.username || 'Yeni üye';
@@ -100,7 +100,7 @@ async function createMemberCard(member, type = 'welcome') {
   ctx.fillText(ellipsis(ctx, guildName, textWidth), textX, 265);
 
   ctx.fillStyle = '#94A3B8';
-  ctx.font = '500 25px Arial';
+  ctx.font = '500 25px sans-serif';
   const detail = welcome
     ? `Seninle birlikte ${member.guild.memberCount || 0} üyeyiz.`
     : `Topluluğumuzda ${member.guild.memberCount || 0} üye kaldı.`;
