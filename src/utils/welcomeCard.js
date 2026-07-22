@@ -46,20 +46,39 @@ async function createMemberCard(member, type = 'welcome') {
   ctx.roundRect(34, 34, 1132, 352, 30);
   ctx.fill();
 
-  const avatarUrl = member.user.displayAvatarURL({ extension: 'png', size: 256 });
-  const avatar = await loadImage(avatarUrl);
+  const avatarX = 214;
+  const avatarY = 210;
+  const avatarRadius = 132;
+  const avatarUrl = member.user?.displayAvatarURL({ extension: 'png', size: 256 });
+  let avatar = null;
+  if (avatarUrl) avatar = await loadImage(avatarUrl).catch(() => null);
+
   ctx.save();
   ctx.beginPath();
-  ctx.arc(214, 210, 132, 0, Math.PI * 2);
+  ctx.arc(avatarX, avatarY, avatarRadius, 0, Math.PI * 2);
   ctx.clip();
-  ctx.drawImage(avatar, 82, 78, 264, 264);
+  if (avatar) {
+    ctx.drawImage(avatar, avatarX - avatarRadius, avatarY - avatarRadius, avatarRadius * 2, avatarRadius * 2);
+  } else {
+    ctx.fillStyle = '#334155';
+    ctx.fill();
+    const initials = String(member.user?.username || 'U').slice(0, 2).toUpperCase();
+    ctx.fillStyle = '#F8FAFC';
+    ctx.font = '700 72px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(initials, avatarX, avatarY);
+  }
   ctx.restore();
 
   ctx.strokeStyle = accent;
   ctx.lineWidth = 10;
   ctx.beginPath();
-  ctx.arc(214, 210, 138, 0, Math.PI * 2);
+  ctx.arc(avatarX, avatarY, avatarRadius + 6, 0, Math.PI * 2);
   ctx.stroke();
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
 
   const textX = 405;
   const textWidth = 720;
