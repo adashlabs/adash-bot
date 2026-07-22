@@ -15,6 +15,7 @@ const { truncate, errorEmbed } = require('../utils/ui');
 const { ticketOpenModal, ticketAddModal, ticketRenameModal, ticketCloseModal, openTicket, claimTicket, closeTicket } = require('../tickets');
 const { runSlash } = require('../slash');
 const { handleConfirmation } = require('../utils/confirmations');
+const embedBuilder = require('../commands/embed');
 const { DEFAULT_SYSTEM_PROMPT } = require('../ai');
 
 const EPHEMERAL = 64;
@@ -198,11 +199,53 @@ async function handleSearch(interaction) {
   await interaction.editReply({ embeds: [wsearch.buildEmbed(session, page)], components: [wsearch.buildRow(sessionId, page, session.totalPages)] });
 }
 
+async function handleEmbedBuilder(interaction) {
+  const [, action, ownerId] = interaction.customId.split(':');
+  if (ownerId !== interaction.user.id) return reject(interaction, 'bu embed paneli başka bir kullanıcıya ait.');
+  const draft = embedBuilder.getDraft(ownerId);
+  if (!draft) return reject(interaction, 'embed taslağının süresi doldu. `a!embed` ile yeniden aç.');
+  if (action === 'edit') return interaction.showModal(embedBuilder.buildModal(ownerId, draft));
+  if (action === 'cancel') {
+    embedBuilder.drafts.delete(ownerId);
+    await interaction.update({ content: 'embed oluşturucu kapatıldı.', embeds: [], components: [] });
+    return;
+  }
+  if (action === 'send') {
+    const channel = await interaction.guild.channels.fetch(draft.channelId).catch(() => null);
+    if (!channel?.isTextBased()) return reject(interaction, 'hedef kanal artık kullanılamıyor.');
+    const sent = await channel.send({ embeds: [embedBuilder.buildEmbed(draft)] }).catch(() => null);
+    if (!sent) return reject(interaction, 'embed gönderilemedi. Botun bu kanalda `Mesaj Gönder` ve `Embed Bağlantıları` yetkilerini kontrol et.');
+    embedBuilder.drafts.delete(ownerId);
+    await interaction.update({ content: `embed başarıyla gönderildi: ${sent.url}`, embeds: [], components: [] });
+  }
+}
+
+async function handleEmbedModal(interaction) {
+  const ownerId = interaction.customId.split(':').at(-1);
+  if (ownerId !== interaction.user.id) return reject(interaction, 'bu embed paneli başka bir kullanıcıya ait.');
+  const draft = embedBuilder.getDraft(ownerId);
+  if (!draft) return reject(interaction, 'embed taslağının süresi doldu. `a!embed` ile yeniden aç.');
+  const extras = interaction.fields.getTextInputValue('extras').split('\\n');
+  draft.title = interaction.fields.getTextInputValue('title').trim();
+  draft.description = interaction.fields.getTextInputValue('description').trim();
+  draft.color = embedBuilder.parseColor(interaction.fields.getTextInputValue('color'));
+  draft.footer = interaction.fields.getTextInputValue('footer').trim();
+  draft.url = extras[0]?.trim() || '';
+  draft.image = extras[1]?.trim() || '';
+  draft.thumbnail = extras[2]?.trim() || '';
+  draft.author = extras[3]?.trim() || '';
+  draft.fields = embedBuilder.parseFields(extras.slice(4).join('\\n'));
+  draft.updatedAt = Date.now();
+  await interaction.reply({ content: 'Embed önizlemesi hazır. İstersen tekrar düzenle veya kanala gönder.', embeds: [embedBuilder.buildEmbed(draft)], components: [embedBuilder.buildControls(ownerId)], flags: EPHEMERAL });
+}
+
 
 module.exports = {
   name: 'interactionCreate',
   async execute(interaction) {
     try {
+      if (interaction.isModalSubmit() && interaction.customId.startsWith('embed_builder:modal:')) return handleEmbedModal(interaction);
+      if (interaction.isButton() && interaction.customId.startsWith('embed_builder:')) return handleEmbedBuilder(interaction);
       if (interaction.isChatInputCommand()) return runSlash(interaction);
       if (interaction.isModalSubmit() && interaction.customId.startsWith('setup_messages:')) {
         if (!hasSetupAccess(interaction)) return reject(interaction, 'bu panel için `Sunucuyu Yönet` yetkisi gerekiyor.');

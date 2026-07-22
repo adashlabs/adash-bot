@@ -114,6 +114,7 @@ OPENAI_TIMEOUT_MS=45000
 | Komut | Prefix | Slash | Açıklama |
 | :--- | :--- | :--- | :--- |
 | **Kurulum** | `a!setup` | `/kurulum` | Etkileşimli sunucu kurulum paneli |
+| **Embed Builder** | `a!embed` | — | Yalnızca `Sunucuyu Yönet` yetkisi olanların kullanabildiği butonlu embed oluşturucu |
 | **Ticket Kurulum** | `a!ticketsetup` | `/ticketsetup` | Tek adımda butonlu ticket sistemini kurar |
 | **Ticket Yönetim** | `a!ticket` | `/ticket` | Açık kanalda üye ekler/çıkarır veya adı değiştirir |
 | **Çekiliş** | `a!giveaway` | `/cekilis` | Parametresiz sihirbaz veya anında çekiliş başlatma |
