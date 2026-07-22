@@ -2,12 +2,21 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
 
 function fitText(ctx, text, maxWidth, startSize = 58, minSize = 28) {
   let size = startSize;
-  do {
+  while (size > minSize) {
     ctx.font = `700 ${size}px Arial`;
     if (ctx.measureText(text).width <= maxWidth) return size;
     size -= 2;
-  } while (size >= minSize);
+  }
+  ctx.font = `700 ${minSize}px Arial`;
   return minSize;
+}
+
+function ellipsis(ctx, value, maxWidth) {
+  const text = String(value || '');
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let result = text;
+  while (result.length > 1 && ctx.measureText(`${result}…`).width > maxWidth) result = result.slice(0, -1);
+  return `${result.trimEnd()}…`;
 }
 
 async function createMemberCard(member, type = 'welcome') {
@@ -52,26 +61,31 @@ async function createMemberCard(member, type = 'welcome') {
   ctx.arc(214, 210, 138, 0, Math.PI * 2);
   ctx.stroke();
 
+  const textX = 405;
+  const textWidth = 720;
+  ctx.textBaseline = 'alphabetic';
+
   const headline = welcome ? 'HOŞ GELDİN' : 'GÖRÜŞMEK ÜZERE';
   ctx.fillStyle = accent;
   ctx.font = '700 30px Arial';
-  ctx.fillText(headline, 405, 130);
+  ctx.fillText(headline, textX, 130);
 
-  const displayName = member.user.globalName || member.user.username;
-  fitText(ctx, displayName, 700);
+  const displayName = member.user.globalName || member.user.username || 'Yeni üye';
+  fitText(ctx, displayName, textWidth);
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillText(displayName, 405, 205);
+  ctx.fillText(ellipsis(ctx, displayName, textWidth), textX, 205);
 
-  fitText(ctx, member.guild.name, 700, 38, 24);
+  const guildName = member.guild.name || 'Discord sunucusu';
+  fitText(ctx, guildName, textWidth, 38, 24);
   ctx.fillStyle = '#CBD5E1';
-  ctx.fillText(member.guild.name, 405, 265);
+  ctx.fillText(ellipsis(ctx, guildName, textWidth), textX, 265);
 
   ctx.fillStyle = '#94A3B8';
   ctx.font = '500 25px Arial';
   const detail = welcome
-    ? `Seninle birlikte ${member.guild.memberCount} üyeyiz.`
-    : `Topluluğumuzda ${member.guild.memberCount} üye kaldı.`;
-  ctx.fillText(detail, 405, 320);
+    ? `Seninle birlikte ${member.guild.memberCount || 0} üyeyiz.`
+    : `Topluluğumuzda ${member.guild.memberCount || 0} üye kaldı.`;
+  ctx.fillText(ellipsis(ctx, detail, textWidth), textX, 320);
 
   return canvas.encode('png');
 }

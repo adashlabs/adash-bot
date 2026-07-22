@@ -84,8 +84,6 @@ function buildSetupPanel(guild, section = 'overview') {
       new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder()
         .setCustomId(`setup_channel:ticketcategory:${guild.id}`).setPlaceholder('1. Ticket kategorisi (📁 Kategori)').setChannelTypes(ChannelType.GuildCategory)),
       new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder()
-        .setCustomId(`setup_channel:ticketpanel:${guild.id}`).setPlaceholder('2. Ticket panel kanalı (📌 Metin Kanalı)').setChannelTypes(ChannelType.GuildText)),
-      new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder()
         .setCustomId(`setup_channel:ticketlog:${guild.id}`).setPlaceholder('3. Ticket log kanalı (📜 Metin Kanalı)').setChannelTypes(ChannelType.GuildText)),
       new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder()
         .setCustomId(`setup_role:ticketsupport:${guild.id}`).setPlaceholder('4. Ticket destek rolü (🛡️ Rol)')),

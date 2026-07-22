@@ -1,6 +1,7 @@
 const {
   ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle, PermissionFlagsBits
 } = require('discord.js');
+const { canManageRole } = require('../utils/security');
 const database = require('../database');
 const ping = require('../commands/ping');
 const help = require('../commands/help');
