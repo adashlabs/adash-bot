@@ -13,7 +13,6 @@ services:
     volumes:
       - adash-data:/app/data
     restart: unless-stopped
-    init: true
     mem_limit: 96m
 
 volumes:
