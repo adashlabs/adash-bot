@@ -4,3 +4,6 @@ data/
 .env.*
 !.env.example
 npm-debug.log*
+/adash
+/adash.exe
+/eski_bot/

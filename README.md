@@ -1,153 +1,43 @@
-# 🤖 Adash Bot — Modern & Gelişmiş Discord.js v14 Bot Mimarisi
+# Adash Bot — Go sürümü
 
-[![Discord.js](https://img.shields.io/badge/discord.js-v14.27.0-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.js.org/)
-[![Node.js](https://img.shields.io/badge/node.js->=18.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
-[![SQLite](https://img.shields.io/badge/SQLite-WAL_Mode-003B57?style=flat-square&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com/)
-[![Dokploy](https://img.shields.io/badge/Dokploy-Compatible-000000?style=flat-square)](https://dokploy.com/)
+Adash; moderasyon, ticket, çekiliş, kanal oyunları, karşılama, TDK/web araması ve OpenAI uyumlu sohbet özellikleri olan Discord botudur. Bu sürüm düşük RAM tüketimi için Go ile tek süreç ve tek shard olarak çalışır.
 
-**Adash**, Discord.js v14 altyapısı üzerine inşa edilmiş; modüler, etkileşimli (Rich Embeds, Modals, Buttons, Select Menus), yüksek performanslı ve tam özelleştirilebilir açık kaynaklı bir Discord genel bot projesidir.
+## Veri uyumluluğu
 
----
+Yeni sürüm önceki Node.js botuyla aynı `data/adash.db` SQLite dosyasını ve aynı tablo/kolonları kullanır. Eski kaynak kod `eski_bot/` klasöründe korunur.
 
-## 🌟 Öne Çıkan Özellikler
+Canlı veriyi taşırken yalnızca `adash.db` dosyasını kopyalamayın. SQLite WAL kullanıldığı için botu durdurduktan sonra `adash.db`, `adash.db-wal` ve `adash.db-shm` birlikte yedeklenmeli ya da kontrollü WAL checkpoint alınmalıdır.
 
-| Sistem | Açıklama |
-| :--- | :--- |
-| 🎫 **Gelişmiş Ticket Sistemi** | `/ticketsetup` veya `/kurulum` ile tek adımda kurulum. Özelleştirilebilir düğme metni/emojisi, kanal içi GUI kontrol paneli (`🙋 Üstlen`, `➕ Üye Ekle Modal`, `✏️ Adlandır Modal`, `📌 Durum Değiştir`, `🔒 Kapat Sebebi Modal`), otomatik .txt transcript ve log kaydı. |
-| 🎉 **Gelişmiş Çekiliş Sistemi** | Gerçek zamanlı kazanma şansı hesaplaması (`%X.X (1 / N)`), hesap yaşı denetimi (0-365 gün), katılım rolü şartı, kalıcı veritabanı kayıtları, otomatik geri sayım ve butonla anında başlatma formları (`Modal`). |
-| 🛡️ **Güçlü Moderasyon** | Düğmeli onay gerektiren `ban`, `kick`, `mute`, `unmute`, `warn`, `unban`, `lock`, `slowmode` işlemleri; onay beklemeden anında çalışan `clear` (`sil`) komutu; vaka geçmişi (`a!cases`) ve sunucu itiraz kanalı (`a!appeal`). |
-| ⚙️ **Etkileşimli Kurulum Paneli** | `/kurulum` veya `a!setup` üzerinden 7 kategoride (Genel Bakış, Karşılama, Oyunlar, Ticket, Çekiliş, Yapay Zekâ, ModLog) açılır menüler (`ChannelSelectMenu`, `RoleSelectMenu`) ve butonlarla anlık yönetim. |
-| 📖 **TDK & Web Araması** | `a!tdk <kelime>` resmî TDK kaynaklarını `tdk-all-api` paketiyle ayrıntılı gösterir; `a!wsearch <sorgu>` ise API anahtarı olmadan DuckDuckGo Instant Answer ve Türkçe Vikipedi sonuçlarını sayfalar. |
-| 🎮 **Kanal Oyunları** | Sayı saymaca (çift paylaşım koruması) ve kelime türetmece (yerel TDK doğrulama, son harf kontrolü, tekrar engeli). |
-| 🤖 **OpenAI v1 AI Asistanı** | `Yapay Zekâ` kurulum bölümünden seçilen özel kanalda otomatik yanıtlar; diğer kanallarda etiketle çalışır. Kanal başına son 12 iletiyi 30 dakika bağlamda tutar ve mention koruması uygular. |
+## Docker ile çalıştırma
 
----
+1. `.env.example` dosyasını `.env` olarak kopyalayın ve `DISCORD_TOKEN` değerini doldurun.
+2. Kalıcı volume'un `/app/data` yoluna bağlı kaldığından emin olun.
+3. Çalıştırın:
 
-## 🔒 Güvenlik & Mimarî Garantiler
-
-1. **SQL Injection Koruması:** `better-sqlite3` hazırlanmış deyimleri (`prepared statements`) ve parametreli sorguları (`?`) kullanır.
-2. **Mention Dezenfeksiyonu:** Tüm kullanıcı veya AI çıktılarında `@everyone`, `@here` ve rol etiketleri etkisizleştirilir (`allowedMentions: { parse: [] }`).
-3. **Rol Hiyerarşisi:** Sunucu sahibi, üst roller ve bot rol sırası hem komut öncesi hem de buton onayı sırasında çift yönlü doğrulanır.
-4. **Discord API Limit Uyumu:** Tüm dinamik paneller Discord API'sinin **en fazla 5 ActionRow** sınırına tam uyumludur.
-5. **Anti-Crash:** İşlem düzeyinde `unhandledRejection` ve `uncaughtException` dinleyicileri ile beklenmeyen çökmeler engellenir.
-
----
-
-## 🚀 Dokploy & Docker Kurulumu (Veri Kaybı Yaşanmadan)
-
-Bot, **SQLite WAL (Write-Ahead Logging)** modunu kullanır. Güncellemelerde ve konteyner yeniden başlatmalarında veri kaybı yaşanmaması için veritabanının `/app/data` dizininde kalıcı olarak saklanması gerekir.
-
-### Docker Compose ve Dokploy Dağıtımı — Registry Gerektirmez
-1. Compose dosyası yerel `Dockerfile` ile imajı derler; GHCR, Docker Hub veya registry girişi gerekmez.
-2. Dokploy panelinde **Create Application** oluşturun ve Build Type olarak **Docker Compose** seçin.
-3. Compose dosya adı olarak `docker-compose.yml` kullanın. Dokploy bu standart dosya adını otomatik algılar.
-4. GitHub repository olarak `https://github.com/adashlabs/adash-bot.git` adresini bağlayın.
-5. **Environment Variables** bölümüne `.env.example` içindeki değerleri, özellikle `DISCORD_TOKEN` değerini ekleyin.
-6. **Persistent Volumes** altında `/app/data` mount path'ine kalıcı bir volume bağlayın. Compose dosyası `adash-data` volume'ünü zaten tanımlar.
-7. Deploy edin. Dokploy Dockerfile'ı build eder; `/app/data` volume'ü SQLite verisini korur.
-
-### Docker Compose Kurulumu
-```bash
-cp .env.example .env
-# .env içine DISCORD_TOKEN yaz
-docker compose -f docker-compose.yml up -d --build
+```sh
+docker compose up -d --build
 ```
 
+Compose yapılandırması Go çalışma belleğini 64 MiB, konteyner sınırını 96 MiB olarak ayarlar. Çok büyük sunucularda bellek sınırına yaklaşılırsa `GOMEMLIMIT` ve `mem_limit` birlikte artırılmalıdır.
 
-### Kalıcı Veri Dizinleri
-- `adash-data:/app/data`: Sunucu ayarları, uyarilar, moderasyon logları, ticket kayıtları, çekilişler ve oyun durumları `adash.db` dosyasında güvenle saklanır.
+## Yerel geliştirme
 
----
+SQLite sürücüsü CGO kullanır; sistemde Go ve bir C derleyicisi bulunmalıdır.
 
-## 💻 Yerel (Local) Kurulum
-
-```bash
-# Depoyu klonlayın
-git clone https://github.com/kullanici/adash-bot.git
-cd adash-bot
-
-# Bağımlılıkları yükleyin
-npm install
-
-# .env dosyasını yapılandırın
-cp .env.example .env
-
-# Botu başlatın
-npm start
+```sh
+go test ./...
+go run ./cmd/adash
 ```
 
----
+## Güvenli geçiş
 
-## ⚙️ Çevre Değişkenleri (`.env`)
+1. Node.js botunu durdurun.
+2. SQLite ana dosyasıyla WAL/SHM dosyalarının yedeğini alın.
+3. Yeni Go imajını aynı kalıcı `/app/data` volume'u ile başlatın.
+4. Bot hazır olduktan sonra ticket, çekiliş ve kurulum panellerini bir test sunucusunda kontrol edin.
 
-```env
-DISCORD_TOKEN=your_bot_token_here
-SHARD_COUNT=1
+Eski sürümü geri çalıştırmak gerekirse `eski_bot/` içindeki kaynaklar kullanılabilir; aynı veritabanına iki bot aynı anda yazmamalıdır.
 
-# İsteğe Bağlı Entegrasyonlar
-SYNAPIC_API_KEY=
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_API_KEY=
-OPENAI_MODEL=gpt-4o-mini
-OPENAI_SYSTEM_PROMPT=
-OPENAI_MAX_TOKENS=900
-OPENAI_TEMPERATURE=0.7
-OPENAI_TIMEOUT_MS=45000
-```
+## Lisans ve sözlük
 
-### Yapay Zekâ Sohbet Kanalı
-
-1. `.env` içinde `OPENAI_BASE_URL` ve `OPENAI_MODEL` değerlerini; servis gerektiriyorsa `OPENAI_API_KEY` değerini girin.
-2. Sunucuda `/kurulum` veya `a!setup` açın, **Yapay Zekâ** bölümünde özel metin kanalını seçin.
-3. Aynı bölümdeki **Sistem Promptunu Düzenle** düğmesiyle AI'ın kişiliğini, üslubunu ve konuşma kurallarını sunucuya özel olarak belirleyin. Bu ayar `.env` promptunun önüne geçer.
-4. Varsayılan karakter, bilgi veren bir bot değil; Türkçe, samimi, doğal konuşan ve uygun zamanda sohbeti ilerleten bir Discord sohbet arkadaşıdır.
-5. Bot bu kanaldaki her normal kullanıcı mesajına doğrudan yanıt verir. Başka kanallarda botu etiketlemek gerekir.
-6. Her kanalın son 12 kullanıcı/asistan iletisi bellekte 30 dakika tutulur; bot yeniden başlatılırsa bellek güvenlik için temizlenir.
-
-`a!wsearch` ve `/webara` için anahtar gerekmez. DuckDuckGo Instant Answer API ile Türkçe Vikipedi API'si kullanılır; HTML sayfa kazıma yapılmaz.
-
----
-
-## 📜 Komut Listesi (31 Prefix & 31 Slash Komutu)
-
-| Komut | Prefix | Slash | Açıklama |
-| :--- | :--- | :--- | :--- |
-| **Kurulum** | `a!setup` | `/kurulum` | Etkileşimli sunucu kurulum paneli |
-| **Embed Builder** | `a!embed` | — | Yalnızca `Sunucuyu Yönet` yetkisi olanların kullanabildiği butonlu embed oluşturucu |
-| **Ticket Kurulum** | `a!ticketsetup` | `/ticketsetup` | Tek adımda butonlu ticket sistemini kurar |
-| **Ticket Yönetim** | `a!ticket` | `/ticket` | Açık kanalda üye ekler/çıkarır veya adı değiştirir |
-| **Çekiliş** | `a!giveaway` | `/cekilis` | Parametresiz sihirbaz veya anında çekiliş başlatma |
-| **Çekiliş Yönetim** | `a!giveawaymanage` | `/cekilisyonet` | Çekilişi erken bitirir veya yeniden çeker |
-| **Yasakla** | `a!ban` | `/ban` | Düğmeli onay ile kullanıcıyı yasaklar |
-| **Yasak Aç** | `a!unban` | `/unban` | Düğmeli onay ile yasağı kaldırır |
-| **At** | `a!kick` | `/kick` | Düğmeli onay ile kullanıcıyı atar |
-| **Sustur** | `a!mute` | `/mute` | Düğmeli onay ile geçici timeout uygular |
-| **Susturma Aç** | `a!unmute` | `/unmute` | Düğmeli onay ile timeout kaldırır |
-| **Uyarı Ver** | `a!warn` | `/warn` | Düğmeli onay ile aktif uyarı kaydeder |
-| **Uyarılar** | `a!warnings` | `/uyarilar` | Aktif uyarı geçmişini gösterir |
-| **Uyarı Temizle** | `a!clearwarns` | `/uyaritemizle` | Aktif uyarıları onay ile temizler |
-| **Mesaj Sil** | `a!clear` / `a!sil` | `/temizle` | 1-100 mesajı anında (onaysız) temizler |
-| **Vakalar** | `a!cases` | `/cases` | Moderasyon kayıt geçmişini gösterir |
-| **Mod Ayar** | `a!modconfig` | `/modconfig` | Uyarı eşiği, timeout süresi ve itiraz kanalını ayarlar |
-| **İtiraz** | `a!appeal` | `/itiraz` | Yetkili ekibe gizli moderasyon itirazı gönderir |
-| **Kilit** | `a!lock` | `/kilit` | Kanal kilidini açar veya kapatır |
-| **Yavaş Mod** | `a!slowmode` | `/yavasmod` | Kanal mesaj süresini ayarlar |
-| **TDK Sözlük** | `a!tdk` | `/tdk` | TDK tüm sözlüklerde ayrıntılı arama yapar |
-| **Web Araması** | `a!wsearch` | `/webara` | Düğmeli ve sayfalı web araması yapar |
-| **Kullanıcı Bilgi** | `a!userinfo` | `/kullanici` | Kullanıcı, hesap ve rol bilgilerini gösterir |
-| **Sunucu Bilgi** | `a!serverinfo` | `/sunucu` | Sunucu, üye, kanal ve boost bilgilerini gösterir |
-| **Avatar** | `a!avatar` | `/avatar` | Avatar resmini büyük boyutta gösterir |
-| **Ping** | `a!ping` | `/ping` | Bot, RAM, CPU ve WebSocket durumunu gösterir |
-| **Yardım** | `a!help` | `/yardim` | Etkileşimli kategorili yardım menüsü |
-| **Oyunlar** | `a!games` | `/oyunlar` | Kanal oyunlarının durumunu ve bağlantılarını gösterir |
-| **Zar** | `a!roll` | `/zar` | Zarları fırlatır |
-| **Yazı Tura** | `a!coinflip` | `/yazitura` | Yazı tura atar |
-| **8Ball** | `a!8ball` | `/sekiztop` | Sihirli 8Ball küresine soru sorar |
-| **Prefix** | `a!prefix` | `/prefix` | Sunucunun ön ekini değiştirir |
-
----
-
-## 📄 Lisans
-
-Bu proje **MIT Lisansı** altında lisanslanmıştır. Dilediğiniz gibi geliştirebilir ve özgürce kullanabilirsiniz.
+Proje MIT lisanslıdır. Yerel kelime oyunu sözlüğü, önceki sürümle eşleşmesi için MIT lisanslı `nlptoolkit-dictionary@1.0.16` paketindeki `turkish_dictionary.txt` verisini kullanır.

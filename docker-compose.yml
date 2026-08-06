@@ -7,12 +7,14 @@ services:
     env_file:
       - .env
     environment:
-      NODE_ENV: production
       ADASH_DB_PATH: /app/data/adash.db
+      GOMEMLIMIT: 64MiB
+      GOGC: "50"
     volumes:
       - adash-data:/app/data
     restart: unless-stopped
     init: true
+    mem_limit: 96m
 
 volumes:
   adash-data:
