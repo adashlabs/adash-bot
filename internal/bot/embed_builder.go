@@ -16,6 +16,13 @@ func (b *Bot) embedComponent(s *discordgo.Session, i *discordgo.InteractionCreat
 	if len(parts) != 3 || parts[2] != userOf(i).ID {
 		return fmt.Errorf("bu embed taslağı sana ait değil")
 	}
+	permissions, err := s.UserChannelPermissions(userOf(i).ID, i.ChannelID)
+	if err != nil {
+		return err
+	}
+	if permissions&discordgo.PermissionManageServer == 0 && permissions&discordgo.PermissionAdministrator == 0 {
+		return fmt.Errorf("embed oluşturmak için Sunucuyu Yönet yetkisi gerekli")
+	}
 	id, action := parts[2], parts[1]
 	b.mu.Lock()
 	d := b.drafts[id]
@@ -65,7 +72,7 @@ func (b *Bot) embedComponent(s *discordgo.Session, i *discordgo.InteractionCreat
 		if err := validateDraft(d); err != nil {
 			return err
 		}
-		msg := &discordgo.MessageSend{Content: d.Content, Embeds: []*discordgo.MessageEmbed{buildDraftEmbed(d)}, AllowedMentions: &discordgo.MessageAllowedMentions{}}
+		msg := &discordgo.MessageSend{Content: d.Content, Embeds: []*discordgo.MessageEmbed{buildDraftEmbed(d)}, AllowedMentions: embedBuilderAllowedMentions()}
 		if _, err := s.ChannelMessageSendComplex(d.ChannelID, msg); err != nil {
 			return err
 		}
@@ -82,6 +89,13 @@ func (b *Bot) embedComponent(s *discordgo.Session, i *discordgo.InteractionCreat
 	return nil
 }
 
+func embedBuilderAllowedMentions() *discordgo.MessageAllowedMentions {
+	return &discordgo.MessageAllowedMentions{Parse: []discordgo.AllowedMentionType{
+		discordgo.AllowedMentionTypeUsers,
+		discordgo.AllowedMentionTypeRoles,
+		discordgo.AllowedMentionTypeEveryone,
+	}}
+}
 func textInput(id, label string, style discordgo.TextInputStyle, maxLength int, value string) discordgo.MessageComponent {
 	return row(discordgo.TextInput{CustomID: id, Label: label, Style: style, Required: false, MaxLength: maxLength, Value: value})
 }

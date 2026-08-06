@@ -11,6 +11,16 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+func giveawayChance(entries, winners int) string {
+	if entries < 1 || winners < 1 {
+		return "%0.0"
+	}
+	chance := float64(winners) / float64(entries) * 100
+	if chance > 100 {
+		chance = 100
+	}
+	return fmt.Sprintf("%%%0.1f", chance)
+}
 func (b *Bot) giveawayEmbed(g database.Giveaway, entries int, ended bool, winners []string) *discordgo.MessageEmbed {
 	prize := safeText(trunc(strings.TrimSpace(g.Prize), 1000))
 	em := &discordgo.MessageEmbed{
@@ -216,7 +226,7 @@ func (b *Bot) toggleGiveaway(s *discordgo.Session, i *discordgo.InteractionCreat
 	}
 	text := "Çekilişten ayrıldın."
 	if joined {
-		text = fmt.Sprintf("🎉 Katılımın kaydedildi. Toplam **%d** katılımcı var.", len(entries))
+		text = fmt.Sprintf("🎉 Katılımın kaydedildi. Toplam **%d** katılımcı var.\nTahmini kazanma şansın: **%s**", len(entries), giveawayChance(len(entries), g.WinnerCount))
 	}
 	return b.followInteraction(s, i, text)
 }

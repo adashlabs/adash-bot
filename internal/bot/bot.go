@@ -178,6 +178,21 @@ func (b *Bot) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 func (b *Bot) pingEmbed(guild string) *discordgo.MessageEmbed {
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
-	g, u, c := b.db.Stats()
-	return &discordgo.MessageEmbed{Title: "🏓 Pong!", Color: colorSuccess, Fields: []*discordgo.MessageEmbedField{{Name: "WebSocket", Value: fmt.Sprintf("%d ms", b.dg.HeartbeatLatency().Milliseconds()), Inline: true}, {Name: "RAM", Value: fmt.Sprintf("%.1f MB", float64(mem.Alloc)/1048576), Inline: true}, {Name: "Çalışma Süresi", Value: formatDuration(time.Since(b.started)), Inline: true}, {Name: "Sunucu / Kullanıcı", Value: fmt.Sprintf("%d / %d", g, u), Inline: true}, {Name: "Toplam Komut", Value: fmt.Sprint(c), Inline: true}}, Timestamp: time.Now().Format(time.RFC3339)}
+	guilds, users, commands := b.db.Stats()
+	startedUnix := b.started.Unix()
+	return &discordgo.MessageEmbed{
+		Title:       "🏓 Bot Durumu",
+		Description: "Bot çalışıyor ve Discord bağlantısı aktif.",
+		Color:       colorSuccess,
+		Fields: []*discordgo.MessageEmbedField{
+			{Name: "Gecikme", Value: fmt.Sprintf("WebSocket: **%d ms**", b.dg.HeartbeatLatency().Milliseconds()), Inline: true},
+			{Name: "RAM", Value: fmt.Sprintf("Kullanım: **%.1f MB**\nAyrılan: **%.1f MB**", float64(mem.HeapAlloc)/1048576, float64(mem.HeapSys)/1048576), Inline: true},
+			{Name: "Çalışma süresi", Value: fmt.Sprintf("<t:%d:R>\nBaşlangıç: <t:%d:F>", startedUnix, startedUnix), Inline: false},
+			{Name: "Bot verileri", Value: fmt.Sprintf("Sunucu: **%d**\nKullanıcı: **%d**", guilds, users), Inline: true},
+			{Name: "İşlem durumu", Value: fmt.Sprintf("Komut: **%d**\nGoroutine: **%d**", commands, runtime.NumGoroutine()), Inline: true},
+			{Name: "Çalışma ortamı", Value: fmt.Sprintf("**%s**\nSQLite", runtime.Version()), Inline: true},
+		},
+		Footer:    &discordgo.MessageEmbedFooter{Text: "Prefix: " + b.db.Prefix(guild) + " • Son kontrol"},
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
 }
