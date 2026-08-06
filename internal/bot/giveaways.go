@@ -11,46 +11,47 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func giveawayChance(entries, winners int) string {
-	if entries < 1 {
-		return "0%"
-	}
-	chance := float64(winners) / float64(entries) * 100
-	if chance > 100 {
-		chance = 100
-	}
-	ratio := (entries + min(entries, winners) - 1) / min(entries, winners)
-	return fmt.Sprintf("%%%0.1f (Yaklaşık 1 / %d)", chance, ratio)
-}
 func (b *Bot) giveawayEmbed(g database.Giveaway, entries int, ended bool, winners []string) *discordgo.MessageEmbed {
-	req := "Ek katılım şartı yok."
-	var lines []string
+	prize := safeText(trunc(strings.TrimSpace(g.Prize), 1000))
+	em := &discordgo.MessageEmbed{
+		Title:       str(ended, "🏆 Çekiliş Sonucu", "🎉 Çekiliş"),
+		Description: "**" + prize + "**",
+		Color:       strColor(ended, colorSuccess, colorPrimary),
+		Footer:      &discordgo.MessageEmbedFooter{Text: fmt.Sprintf("Çekiliş #%d", g.ID)},
+	}
+	if ended {
+		winnerText := "Kazanan belirlenemedi"
+		if len(winners) > 0 {
+			mentions := make([]string, len(winners))
+			for index, userID := range winners {
+				mentions[index] = "<@" + userID + ">"
+			}
+			winnerText = strings.Join(mentions, ", ")
+		}
+		em.Fields = append(em.Fields,
+			&discordgo.MessageEmbedField{Name: "Kazananlar", Value: winnerText},
+			&discordgo.MessageEmbedField{Name: "Katılım", Value: fmt.Sprintf("%d kişi", entries), Inline: true},
+			&discordgo.MessageEmbedField{Name: "Düzenleyen", Value: "<@" + g.HostID + ">", Inline: true},
+		)
+		return em
+	}
+
+	em.Fields = append(em.Fields,
+		&discordgo.MessageEmbedField{Name: "Bitiş", Value: fmt.Sprintf("<t:%d:F>\n<t:%d:R>", g.EndsAt/1000, g.EndsAt/1000), Inline: true},
+		&discordgo.MessageEmbedField{Name: "Kazanan", Value: fmt.Sprintf("%d kişi", g.WinnerCount), Inline: true},
+		&discordgo.MessageEmbedField{Name: "Katılım", Value: fmt.Sprintf("%d kişi", entries), Inline: true},
+	)
+	var conditions []string
 	if g.RequiredRoleID.Valid {
-		lines = append(lines, "Gerekli rol: <@&"+g.RequiredRoleID.String+">")
+		conditions = append(conditions, "Rol: <@&"+g.RequiredRoleID.String+">")
 	}
 	if g.MinAccountAgeDays > 0 {
-		lines = append(lines, fmt.Sprintf("Minimum hesap yaşı: %d gün", g.MinAccountAgeDays))
+		conditions = append(conditions, fmt.Sprintf("Hesap yaşı: en az %d gün", g.MinAccountAgeDays))
 	}
-	if len(lines) > 0 {
-		req = strings.Join(lines, "\n")
+	if len(conditions) > 0 {
+		em.Fields = append(em.Fields, &discordgo.MessageEmbedField{Name: "Katılım koşulları", Value: strings.Join(conditions, "\n")})
 	}
-	desc := fmt.Sprintf("**Ödül:** %s\n**Kazanan Sayısı:** %d\n**Toplam Katılımcı:** %d\n", trunc(g.Prize, 1000), g.WinnerCount, entries)
-	if ended {
-		win := "Katılımcı yok"
-		if len(winners) > 0 {
-			xs := make([]string, len(winners))
-			for i, x := range winners {
-				xs[i] = "<@" + x + ">"
-			}
-			win = strings.Join(xs, ", ")
-		}
-		desc += "**Kazananlar:** " + win
-	} else {
-		desc += "**Katılımcı Başına Şans:** " + giveawayChance(entries, g.WinnerCount) + fmt.Sprintf("\n**Bitiş:** <t:%d:F> (<t:%d:R>)", g.EndsAt/1000, g.EndsAt/1000)
-	}
-	desc += "\n\n**Katılım Şartları**\n" + req
-	em := embed(str(ended, "🎉 Çekiliş Sonuçlandı", "🎉 Gelişmiş Çekiliş"), desc, strColor(ended, colorDanger, colorPrimary))
-	em.Footer = &discordgo.MessageEmbedFooter{Text: fmt.Sprintf("Çekiliş Sahibi ID: %s · ID: #%d", g.HostID, g.ID)}
+	em.Fields = append(em.Fields, &discordgo.MessageEmbedField{Name: "Düzenleyen", Value: "<@" + g.HostID + ">"})
 	return em
 }
 func strColor(v bool, a, b int) int {
@@ -67,6 +68,9 @@ func giveawayButtons(ended bool) []discordgo.MessageComponent {
 func (b *Bot) giveawayCommand(c *commandContext, args []string) error {
 	if e := c.require(discordgo.PermissionManageServer); e != nil {
 		return e
+	}
+	if len(args) == 0 {
+		return c.embed(b.setupEmbed(c.guildID, "giveaway"), setupComponents(c.guildID, "giveaway")...)
 	}
 	if len(args) < 3 {
 		return fmt.Errorf("kullanım: giveaway <10m|2h|3d> <kazanan> <ödül>")
@@ -93,7 +97,7 @@ func (b *Bot) createGiveaway(c *commandContext, d time.Duration, winners int, pr
 		draft.RequiredRoleID.Valid = true
 		draft.RequiredRoleID.String = role
 	}
-	msg, e := c.s.ChannelMessageSendComplex(c.channelID, &discordgo.MessageSend{Embeds: []*discordgo.MessageEmbed{b.giveawayEmbed(draft, 0, false, nil)}, Components: giveawayButtons(false)})
+	msg, e := c.s.ChannelMessageSendComplex(c.channelID, &discordgo.MessageSend{Embeds: []*discordgo.MessageEmbed{b.giveawayEmbed(draft, 0, false, nil)}, Components: giveawayButtons(false), AllowedMentions: &discordgo.MessageAllowedMentions{}})
 	if e != nil {
 		return e
 	}
@@ -165,10 +169,10 @@ func (b *Bot) finishGiveaway(g database.Giveaway) ([]string, error) {
 		for i, x := range winners {
 			xs[i] = "<@" + x + ">"
 		}
-		text = "🎉 Tebrikler " + strings.Join(xs, ", ") + "! **" + g.Prize + "** kazandınız."
+		text = "🎉 Tebrikler " + strings.Join(xs, ", ") + "! **" + g.Prize + "** ödülünü kazandınız."
 	}
 	text = safeText(text)
-	_, _ = b.dg.ChannelMessageSend(g.ChannelID, text)
+	_, _ = b.dg.ChannelMessageSendComplex(g.ChannelID, &discordgo.MessageSend{Content: text, AllowedMentions: &discordgo.MessageAllowedMentions{Users: winners}})
 	b.giveawayLog(g, "🏁 Çekiliş sonuçlandı · "+text)
 	b.mu.Lock()
 	delete(b.giveawayTimers, g.ID)
@@ -210,9 +214,9 @@ func (b *Bot) toggleGiveaway(s *discordgo.Session, i *discordgo.InteractionCreat
 	if e != nil {
 		return e
 	}
-	text := "👋 Çekilişten ayrıldın."
+	text := "Çekilişten ayrıldın."
 	if joined {
-		text = fmt.Sprintf("🎉 Katıldın! Toplam: **%d** · Tahmini şans: **%s**", len(entries), giveawayChance(len(entries), g.WinnerCount))
+		text = fmt.Sprintf("🎉 Katılımın kaydedildi. Toplam **%d** katılımcı var.", len(entries))
 	}
 	return b.followInteraction(s, i, text)
 }
@@ -270,7 +274,7 @@ func (b *Bot) giveawayManage(c *commandContext, args []string) error {
 			text = "🔁 Yeni kazananlar: " + strings.Join(xs, ", ")
 		}
 		text = safeText(text)
-		_, _ = b.dg.ChannelMessageSend(g.ChannelID, text)
+		_, _ = b.dg.ChannelMessageSendComplex(g.ChannelID, &discordgo.MessageSend{Content: text, AllowedMentions: &discordgo.MessageAllowedMentions{Users: wins}})
 		b.giveawayLog(g, text)
 		return c.text(text)
 	}
@@ -279,6 +283,6 @@ func (b *Bot) giveawayManage(c *commandContext, args []string) error {
 func (b *Bot) giveawayLog(g database.Giveaway, text string) {
 	channel := b.db.ConfigString(g.GuildID, "giveaway_log_channel_id", "")
 	if channel != "" {
-		_, _ = b.dg.ChannelMessageSend(channel, text)
+		_, _ = b.dg.ChannelMessageSendComplex(channel, &discordgo.MessageSend{Content: text, AllowedMentions: &discordgo.MessageAllowedMentions{}})
 	}
 }

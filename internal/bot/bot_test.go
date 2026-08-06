@@ -27,8 +27,3 @@ func TestTurkishDictionary(t *testing.T) {
 		t.Fatal("uydurma kelime kabul edildi")
 	}
 }
-func TestGiveawayChance(t *testing.T) {
-	if got := giveawayChance(10, 1); got != "%10.0 (Yaklaşık 1 / 10)" {
-		t.Fatalf("beklenmeyen şans: %s", got)
-	}
-}

@@ -252,10 +252,11 @@ func (b *Bot) roll(c *commandContext, spec string) error {
 	return c.embed(embed("🎲 Zar Sonucu", fmt.Sprintf("`%s` → **%d**\n%s", spec, total, strings.Join(parts, ", ")), colorPrimary), row(button("roll_retry:"+spec, "Tekrar Zar At", discordgo.PrimaryButton, "🎲")))
 }
 func (b *Bot) startEmbedBuilder(c *commandContext) error {
+	d := &embedDraft{ChannelID: c.channelID, Color: "#5865F2", Updated: time.Now()}
 	b.mu.Lock()
-	b.drafts[c.user.ID] = &embedDraft{ChannelID: c.channelID, Color: "#5865F2", Updated: time.Now()}
+	b.drafts[c.user.ID] = d
 	b.mu.Unlock()
-	return c.embed(embed("🧱 Embed Builder", "İçeriği düzenlemek için düğmeye bas.", colorPrimary), row(button("embed_builder:edit:"+c.user.ID, "İçeriği Düzenle", discordgo.PrimaryButton, "✏️"), button("embed_builder:send:"+c.user.ID, "Kanala Gönder", discordgo.SuccessButton, "✅"), button("embed_builder:cancel:"+c.user.ID, "İptal", discordgo.DangerButton, "✖️")))
+	return c.embed(previewDraftEmbed(d), embedBuilderControls(c.user.ID, 0)...)
 }
 func token() string { v := make([]byte, 8); _, _ = rand.Read(v); return hex.EncodeToString(v) }
 func sortedKeys(m map[string]int64) []string {

@@ -33,8 +33,11 @@ type confirmation struct {
 	Action          func() error
 }
 type embedDraft struct {
-	ChannelID, Title, Description, Color, Footer, URL, Image, Thumbnail, Author string
-	Updated                                                                     time.Time
+	ChannelID, Content, Title, Description, Color, URL       string
+	Image, Thumbnail, Author, AuthorIcon, Footer, FooterIcon string
+	Fields                                                   []*discordgo.MessageEmbedField
+	Timestamp                                                bool
+	Updated                                                  time.Time
 }
 type searchSession struct {
 	OwnerID, Query string
