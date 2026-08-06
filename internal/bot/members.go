@@ -9,6 +9,7 @@ import (
 	"image/png"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -22,6 +23,9 @@ import (
 )
 
 func (b *Bot) memberAdd(s *discordgo.Session, e *discordgo.GuildMemberAdd) {
+	if e == nil || e.User == nil || !validDiscordID(e.User.ID) {
+		return
+	}
 	_ = b.db.RegisterUser(e.User.ID, e.User.Username, e.User.Discriminator)
 	settings, err := b.db.Settings(e.GuildID)
 	if err != nil {
@@ -36,6 +40,9 @@ func (b *Bot) memberAdd(s *discordgo.Session, e *discordgo.GuildMemberAdd) {
 }
 
 func (b *Bot) memberRemove(s *discordgo.Session, e *discordgo.GuildMemberRemove) {
+	if e == nil || e.User == nil || !validDiscordID(e.User.ID) {
+		return
+	}
 	settings, err := b.db.Settings(e.GuildID)
 	if err == nil && settings.FarewellEnabled && settings.FarewellChannelID.Valid {
 		b.sendGreeting(s, e.GuildID, settings.FarewellChannelID.String, e.User, settings.FarewellMessage, false)
@@ -43,18 +50,21 @@ func (b *Bot) memberRemove(s *discordgo.Session, e *discordgo.GuildMemberRemove)
 }
 
 func (b *Bot) sendGreeting(s *discordgo.Session, guildID, channelID string, u *discordgo.User, template string, welcome bool) {
+	if u == nil || !validDiscordID(u.ID) {
+		return
+	}
 	guild, _ := s.Guild(guildID)
 	server, count := "Sunucu", 0
 	if guild != nil {
 		server, count = guild.Name, guild.MemberCount
 	}
 	displayName := valueOr(u.GlobalName, u.Username)
-	text := strings.NewReplacer("{user}", "<@"+u.ID+">", "{username}", displayName, "{server}", server).Replace(template)
+	text := renderGreetingTemplate(template, u.ID, displayName, server, count)
 	title := "👋 Hoş geldin, " + displayName
-	footer := fmt.Sprintf("%s • %d. üye", server, count)
+	footer := fmt.Sprintf("%s • %d. üye • ID: %s", server, count, u.ID)
 	if !welcome {
 		title = "👋 Görüşmek üzere, " + displayName
-		footer = fmt.Sprintf("%s • Sunucuda %d üye", server, count)
+		footer = fmt.Sprintf("%s • Sunucuda %d üye • ID: %s", server, count, u.ID)
 	}
 	em := embed(trunc(title, 256), text, strColor(welcome, colorSuccess, colorDanger))
 	em.Thumbnail = &discordgo.MessageEmbedThumbnail{URL: u.AvatarURL("256")}
@@ -63,12 +73,35 @@ func (b *Bot) sendGreeting(s *discordgo.Session, guildID, channelID string, u *d
 		Embeds:          []*discordgo.MessageEmbed{em},
 		AllowedMentions: &discordgo.MessageAllowedMentions{Users: []string{u.ID}},
 	}
+	if welcome {
+		send.Content = "<@" + u.ID + ">"
+	}
 	if data, err := welcomeCard(u, server, count, welcome); err == nil {
 		name := str(welcome, "welcome.png", "farewell.png")
 		send.Files = []*discordgo.File{{Name: name, ContentType: "image/png", Reader: bytes.NewReader(data)}}
 		em.Image = &discordgo.MessageEmbedImage{URL: "attachment://" + name}
 	}
 	_, _ = s.ChannelMessageSendComplex(channelID, send)
+}
+
+var greetingUserMentionPattern = regexp.MustCompile("<@!?\\d{17,20}>")
+var discordIDPattern = regexp.MustCompile("^\\d{17,20}$")
+
+func validDiscordID(id string) bool {
+	return discordIDPattern.MatchString(id)
+}
+
+func renderGreetingTemplate(template, userID, displayName, server string, memberCount int) string {
+	mention := "<@" + userID + ">"
+	template = greetingUserMentionPattern.ReplaceAllString(template, mention)
+	template = strings.ReplaceAll(template, "$"+"{user}", mention)
+	return strings.NewReplacer(
+		"{user}", mention,
+		"{member}", mention,
+		"{username}", displayName,
+		"{server}", server,
+		"{memberCount}", fmt.Sprint(memberCount),
+	).Replace(template)
 }
 
 func welcomeCard(u *discordgo.User, server string, memberCount int, welcome bool) ([]byte, error) {

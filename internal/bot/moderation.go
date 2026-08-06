@@ -15,8 +15,15 @@ func (b *Bot) target(c *commandContext, input string) (*discordgo.User, *discord
 		return nil, nil, fmt.Errorf("geçerli bir kullanıcı belirt")
 	}
 	m, e := c.s.GuildMember(c.guildID, id)
-	if e == nil {
-		return m.User, m, nil
+	if e == nil && m != nil {
+		user := m.User
+		if user == nil || user.ID == "" {
+			user, e = c.s.User(id)
+			if e != nil {
+				return nil, nil, fmt.Errorf("kullanıcı bilgisi alınamadı")
+			}
+		}
+		return user, m, nil
 	}
 	u, e := c.s.User(id)
 	if e != nil {
@@ -64,11 +71,11 @@ func (b *Bot) moderationCheck(c *commandContext, target *discordgo.Member, perm 
 	if actor == nil {
 		actor, _ = c.s.GuildMember(c.guildID, c.user.ID)
 	}
-	if actor == nil || actor.User == nil {
+	if actor == nil {
 		return fmt.Errorf("yetkili üye bilgisi alınamadı")
 	}
 	bot, _ := c.s.GuildMember(c.guildID, botID)
-	if actor.User.ID != g.OwnerID && highest(g, actor) <= highest(g, target) {
+	if c.user.ID != g.OwnerID && highest(g, actor) <= highest(g, target) {
 		return fmt.Errorf("kendi en yüksek rolüne eşit veya üstteki üyeye işlem uygulayamazsın")
 	}
 	if bot == nil || highest(g, bot) <= highest(g, target) {
