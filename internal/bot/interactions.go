@@ -34,10 +34,20 @@ func interactionID(i *discordgo.InteractionCreate) string {
 	}
 	return i.ModalSubmitData().CustomID
 }
-func (b *Bot) interactionError(s *discordgo.Session, i *discordgo.InteractionCreate, e error) {
-	msg := trunc(e.Error(), 1800)
-	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: &discordgo.InteractionResponseData{Content: "❌ " + msg, Flags: discordgo.MessageFlagsEphemeral}}); err != nil {
-		_, _ = s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{Content: "❌ " + msg, Flags: discordgo.MessageFlagsEphemeral})
+func (b *Bot) interactionError(s *discordgo.Session, i *discordgo.InteractionCreate, err error) {
+	em := errorEmbed(trunc(err.Error(), 1800))
+	response := &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Embeds: []*discordgo.MessageEmbed{em},
+			Flags:  discordgo.MessageFlagsEphemeral,
+		},
+	}
+	if responseErr := s.InteractionRespond(i.Interaction, response); responseErr != nil {
+		_, _ = s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
+			Embeds: []*discordgo.MessageEmbed{em},
+			Flags:  discordgo.MessageFlagsEphemeral,
+		})
 	}
 }
 func userOf(i *discordgo.InteractionCreate) *discordgo.User {
@@ -212,31 +222,45 @@ func (b *Bot) confirmComponent(s *discordgo.Session, i *discordgo.InteractionCre
 	if len(parts) != 3 {
 		return nil
 	}
+	userID := userOf(i).ID
 	b.mu.Lock()
-	x, ok := b.confirms[parts[2]]
-	if ok {
+	item, ok := b.confirms[parts[2]]
+	if ok && item.UserID == userID && item.GuildID == i.GuildID {
 		delete(b.confirms, parts[2])
 	}
 	b.mu.Unlock()
-	if !ok || time.Now().After(x.Expires) {
+	if !ok || time.Now().After(item.Expires) {
 		return fmt.Errorf("onay süresi doldu")
 	}
-	if x.UserID != userOf(i).ID || x.GuildID != i.GuildID {
+	if item.UserID != userID || item.GuildID != i.GuildID {
 		return fmt.Errorf("bu onay sana ait değil")
 	}
-	approved := parts[1] == "yes"
-	label := str(approved, "Onaylandı", "İptal Edildi")
-	style := discordgo.SecondaryButton
-	if approved {
-		style = discordgo.SuccessButton
+	if parts[1] != "yes" {
+		return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseUpdateMessage,
+			Data: &discordgo.InteractionResponseData{
+				Embeds:     []*discordgo.MessageEmbed{moderationResultEmbed(item, "cancelled", "İşlem uygulanmadan iptal edildi.")},
+				Components: []discordgo.MessageComponent{completedModerationButton("cancelled")},
+			},
+		})
 	}
-	if e := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseUpdateMessage, Data: &discordgo.InteractionResponseData{Components: []discordgo.MessageComponent{row(discordgo.Button{CustomID: "done", Label: label, Style: style, Disabled: true})}}}); e != nil {
-		return e
+	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseDeferredMessageUpdate}); err != nil {
+		return err
 	}
-	if approved {
-		return x.Action()
+	if err := item.Action(); err != nil {
+		log.Printf("moderation confirmation %s: %v", parts[2], err)
+		message := trunc(err.Error(), 1500)
+		_, _ = s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+			Embeds:     &[]*discordgo.MessageEmbed{moderationResultEmbed(item, "failed", message)},
+			Components: &[]discordgo.MessageComponent{completedModerationButton("failed")},
+		})
+		return nil
 	}
-	return nil
+	_, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Embeds:     &[]*discordgo.MessageEmbed{moderationResultEmbed(item, "success", "Yetkili onayı alındı ve işlem başarıyla uygulandı.")},
+		Components: &[]discordgo.MessageComponent{completedModerationButton("success")},
+	})
+	return err
 }
 func (b *Bot) helpCategory(guild, section string) *discordgo.MessageEmbed {
 	p := b.db.Prefix(guild)

@@ -15,6 +15,7 @@ import (
 var wordPattern = regexp.MustCompile(`^[aâbcçdefgğhıiîjklmnoöprsştuüûvyz]{2,30}$`)
 var dictionaryOnce sync.Once
 var dictionaryWords []string
+var dictionaryInitials map[rune]bool
 
 //go:embed assets/turkish_dictionary.txt
 var dictionaryData string
@@ -27,6 +28,7 @@ func normalizeWord(s string) string {
 }
 func loadDictionary() {
 	dictionaryWords = nil
+	dictionaryInitials = make(map[rune]bool)
 	scan := bufio.NewScanner(strings.NewReader(dictionaryData))
 	for scan.Scan() {
 		line := strings.TrimSpace(scan.Text())
@@ -37,6 +39,9 @@ func loadDictionary() {
 		word = normalizeWord(strings.TrimSuffix(word, "'"))
 		if wordPattern.MatchString(word) {
 			dictionaryWords = append(dictionaryWords, word)
+			if runes := []rune(word); len(runes) > 0 {
+				dictionaryInitials[runes[0]] = true
+			}
 		}
 	}
 	sort.Strings(dictionaryWords)
@@ -45,6 +50,26 @@ func isDictionaryWord(word string) bool {
 	dictionaryOnce.Do(loadDictionary)
 	i := sort.SearchStrings(dictionaryWords, word)
 	return i < len(dictionaryWords) && dictionaryWords[i] == word
+}
+func requiredWordInitial(lastWord string) rune {
+	dictionaryOnce.Do(loadDictionary)
+	runes := []rune(normalizeWord(lastWord))
+	for index := len(runes) - 1; index >= 0; index-- {
+		if dictionaryInitials[runes[index]] {
+			return runes[index]
+		}
+	}
+	if len(runes) > 0 {
+		return runes[len(runes)-1]
+	}
+	return 0
+}
+
+func (b *Bot) temporaryGameEmbed(channelID string, em *discordgo.MessageEmbed, lifetime time.Duration) {
+	message, _ := b.dg.ChannelMessageSendEmbed(channelID, em)
+	if message != nil {
+		time.AfterFunc(lifetime, func() { _ = b.dg.ChannelMessageDelete(message.ChannelID, message.ID) })
+	}
 }
 func (b *Bot) handleGame(m *discordgo.MessageCreate) bool {
 	s, e := b.db.Settings(m.GuildID)
@@ -71,10 +96,14 @@ func (b *Bot) rejectGame(m *discordgo.MessageCreate, reason string) {
 	if b.db.ConfigBool(m.GuildID, "game_delete_invalid", true) {
 		_ = b.dg.ChannelMessageDelete(m.ChannelID, m.ID)
 	}
-	sent, _ := b.dg.ChannelMessageSend(m.ChannelID, "❌ <@"+m.Author.ID+"> "+reason)
-	if sent != nil {
-		time.AfterFunc(5500*time.Millisecond, func() { _ = b.dg.ChannelMessageDelete(sent.ChannelID, sent.ID) })
+	em := &discordgo.MessageEmbed{
+		Title:       "❌ Geçersiz Hamle",
+		Description: "<@" + m.Author.ID + "> " + reason,
+		Color:       colorDanger,
+		Footer:      &discordgo.MessageEmbedFooter{Text: "Oyun kaldığı yerden devam ediyor."},
+		Timestamp:   time.Now().Format(time.RFC3339),
 	}
+	b.temporaryGameEmbed(m.ChannelID, em, 5500*time.Millisecond)
 }
 func (b *Bot) counting(m *discordgo.MessageCreate) {
 	g, e := b.db.Game(m.GuildID)
@@ -143,10 +172,15 @@ func (b *Bot) wordChain(m *discordgo.MessageCreate) {
 		return
 	}
 	if g.LastWord.Valid {
-		last := []rune(g.LastWord.String)
+		required := requiredWordInitial(g.LastWord.String)
 		cur := []rune(word)
-		if len(last) > 0 && cur[0] != last[len(last)-1] {
-			b.rejectGame(m, "kelime **"+strings.ToUpper(string(last[len(last)-1]))+"** harfiyle başlamalı.")
+		if required != 0 && cur[0] != required {
+			lastRunes := []rune(g.LastWord.String)
+			reason := "kelime **" + strings.ToUpper(string(required)) + "** harfiyle başlamalı."
+			if len(lastRunes) > 0 && required != lastRunes[len(lastRunes)-1] {
+				reason = "**" + strings.ToUpper(string(lastRunes[len(lastRunes)-1])) + "** ile başlayan Türkçe kelime olmadığı için kelime **" + strings.ToUpper(string(required)) + "** harfiyle başlamalı."
+			}
+			b.rejectGame(m, reason)
 			return
 		}
 	}
@@ -160,5 +194,19 @@ func (b *Bot) wordChain(m *discordgo.MessageCreate) {
 	}
 	if b.db.SetWord(m.GuildID, word, m.Author.ID) == nil {
 		_ = b.dg.MessageReactionAdd(m.ChannelID, m.ID, "✅")
+		runes := []rune(word)
+		if len(runes) > 1 {
+			next := requiredWordInitial(word)
+			last := runes[len(runes)-1]
+			if next != 0 && next != last {
+				_ = b.dg.MessageReactionAdd(m.ChannelID, m.ID, "🔄")
+				em := embed(
+					"🔄 Harf Kuralı",
+					"**"+strings.ToUpper(string(last))+"** ile başlayan Türkçe kelime bulunmadığı için sıradaki kelime **"+strings.ToUpper(string(next))+"** harfiyle başlamalı.",
+					colorPrimary,
+				)
+				b.temporaryGameEmbed(m.ChannelID, em, 12*time.Second)
+			}
+		}
 	}
 }

@@ -64,6 +64,9 @@ func (b *Bot) moderationCheck(c *commandContext, target *discordgo.Member, perm 
 	if actor == nil {
 		actor, _ = c.s.GuildMember(c.guildID, c.user.ID)
 	}
+	if actor == nil || actor.User == nil {
+		return fmt.Errorf("yetkili üye bilgisi alınamadı")
+	}
 	bot, _ := c.s.GuildMember(c.guildID, botID)
 	if actor.User.ID != g.OwnerID && highest(g, actor) <= highest(g, target) {
 		return fmt.Errorf("kendi en yüksek rolüne eşit veya üstteki üyeye işlem uygulayamazsın")
@@ -75,16 +78,20 @@ func (b *Bot) moderationCheck(c *commandContext, target *discordgo.Member, perm 
 }
 func (b *Bot) requestConfirmation(c *commandContext, title, target, reason, details string, action func() error) error {
 	id := token()
-	b.mu.Lock()
-	b.confirms[id] = confirmation{UserID: c.user.ID, GuildID: c.guildID, Expires: time.Now().Add(30 * time.Second), Action: action}
-	b.mu.Unlock()
-	desc := fmt.Sprintf("**Hedef:** %s\n**Sebep:** %s", target, reason)
-	if details != "" {
-		desc += "\n" + details
+	item := confirmation{
+		UserID: c.user.ID, GuildID: c.guildID, Title: title, Target: target,
+		Reason: reason, Details: details, Expires: time.Now().Add(30 * time.Second), Action: action,
 	}
-	em := embed("⚠️ "+title, desc, colorWarning)
-	em.Footer = &discordgo.MessageEmbedFooter{Text: "30 saniye içinde onayla."}
-	return c.embed(em, row(button("modconfirm:yes:"+id, "Evet, uygula", discordgo.DangerButton, "✅"), button("modconfirm:no:"+id, "Hayır, iptal", discordgo.SecondaryButton, "✖️")))
+	b.mu.Lock()
+	b.confirms[id] = item
+	b.mu.Unlock()
+	return c.embed(
+		moderationConfirmationEmbed(item),
+		row(
+			button("modconfirm:yes:"+id, "İşlemi Onayla", discordgo.DangerButton, "✅"),
+			button("modconfirm:no:"+id, "Vazgeç", discordgo.SecondaryButton, "✖️"),
+		),
+	)
 }
 func (b *Bot) runModeration(c *commandContext, name string, args []string) error {
 	if name == "lock" {
@@ -250,27 +257,41 @@ func valueOr(v, f string) string {
 	return v
 }
 func (b *Bot) followup(c *commandContext, content string, ephemeral bool) error {
+	em := moderationSuccessEmbed(content)
 	if c.interaction != nil {
 		flags := discordgo.MessageFlags(0)
 		if ephemeral {
 			flags = discordgo.MessageFlagsEphemeral
 		}
-		_, e := c.s.FollowupMessageCreate(c.interaction.Interaction, true, &discordgo.WebhookParams{Content: content, Flags: flags})
-		return e
+		_, err := c.s.FollowupMessageCreate(c.interaction.Interaction, true, &discordgo.WebhookParams{
+			Embeds: []*discordgo.MessageEmbed{em}, Flags: flags,
+		})
+		return err
 	}
-	_, e := c.s.ChannelMessageSend(c.channelID, content)
-	return e
+	_, err := c.s.ChannelMessageSendEmbed(c.channelID, em)
+	return err
 }
 func (b *Bot) sendModLog(guild, action, target, moderator, reason, extra string) {
-	s, e := b.db.Settings(guild)
-	if e != nil || !s.ModLogChannelID.Valid {
+	settings, err := b.db.Settings(guild)
+	if err != nil || !settings.ModLogChannelID.Valid {
 		return
 	}
-	desc := fmt.Sprintf("**İşlem:** %s\n**Hedef:** %s\n**Yetkili:** <@%s>\n**Sebep:** %s", action, str(target != "", "<@"+target+">", "—"), moderator, trunc(reason, 500))
-	if extra != "" {
-		desc += "\n" + extra
+	label, icon, colorValue := moderationActionMeta(action)
+	em := &discordgo.MessageEmbed{
+		Title: icon + " " + label,
+		Color: colorValue,
+		Fields: []*discordgo.MessageEmbedField{
+			{Name: "Hedef", Value: str(target != "", "<@"+target+">", "Kanal işlemi"), Inline: true},
+			{Name: "Yetkili", Value: "<@" + moderator + ">", Inline: true},
+			{Name: "Sebep", Value: trunc(valueOr(reason, "Sebep belirtilmedi"), 1024)},
+		},
+		Footer:    &discordgo.MessageEmbedFooter{Text: "Adash Moderasyon • " + action},
+		Timestamp: time.Now().Format(time.RFC3339),
 	}
-	_, _ = b.dg.ChannelMessageSendEmbed(s.ModLogChannelID.String, embed("🛡️ Moderasyon Kaydı", desc, colorNeutral))
+	if extra != "" {
+		em.Fields = append(em.Fields, &discordgo.MessageEmbedField{Name: "Ayrıntı", Value: trunc(extra, 1024)})
+	}
+	_, _ = b.dg.ChannelMessageSendEmbed(settings.ModLogChannelID.String, em)
 }
 func (b *Bot) showWarnings(c *commandContext, id string) error {
 	u, _, e := b.target(c, id)
@@ -282,7 +303,7 @@ func (b *Bot) showWarnings(c *commandContext, id string) error {
 		return e
 	}
 	if len(xs) == 0 {
-		return c.text("Bu kullanıcının aktif uyarısı yok.")
+		return c.embed(embed("ℹ️ Aktif Uyarı Yok", "**"+u.Username+"** kullanıcısının aktif uyarısı bulunmuyor.", colorNeutral))
 	}
 	lines := make([]string, 0, len(xs))
 	for _, x := range xs {
@@ -302,7 +323,7 @@ func (b *Bot) showCases(c *commandContext, id string) error {
 		return e
 	}
 	if len(xs) == 0 {
-		return c.text("Moderasyon kaydı bulunamadı.")
+		return c.embed(embed("ℹ️ Kayıt Bulunamadı", "Bu filtreye uygun moderasyon kaydı bulunmuyor.", colorNeutral))
 	}
 	lines := make([]string, 0, len(xs))
 	for _, x := range xs {
@@ -357,7 +378,7 @@ func (b *Bot) clearMessages(c *commandContext, args []string) error {
 	}
 	count := int64(len(ids))
 	_ = b.db.LogMod(c.guildID, valueOr(target, c.channelID), c.user.ID, "clear", "Kanal mesajları", &count)
-	return c.text(fmt.Sprintf("🗑️ **%d** mesaj temizlendi.", len(ids)))
+	return c.embed(successEmbed("🗑️ Mesajlar Temizlendi", fmt.Sprintf("**%d** mesaj başarıyla kaldırıldı.", len(ids))))
 }
 func (b *Bot) lock(c *commandContext, args []string) error {
 	if e := c.require(discordgo.PermissionManageChannels); e != nil {
@@ -394,7 +415,7 @@ func (b *Bot) slowmode(c *commandContext, args []string) error {
 		return e
 	}
 	b.sendModLog(c.guildID, "slowmode", "", c.user.ID, formatDuration(d), "")
-	return c.text("⏱️ Yavaş mod: **" + formatDuration(d) + "**")
+	return c.embed(successEmbed("⏱️ Yavaş Mod Güncellendi", "Yeni süre: **"+formatDuration(d)+"**"))
 }
 func (b *Bot) modConfig(c *commandContext, args []string) error {
 	if e := c.require(discordgo.PermissionManageServer); e != nil {
@@ -418,13 +439,13 @@ func (b *Bot) modConfig(c *commandContext, args []string) error {
 		if e = b.db.SetConfig(c.guildID, "warn_auto_timeout_ms", d.Milliseconds()); e != nil {
 			return e
 		}
-		return c.text(fmt.Sprintf("⚙️ %d. uyarıda %s timeout uygulanacak.", n, formatDuration(d)))
+		return c.embed(successEmbed("⚙️ Uyarı Otomasyonu Güncellendi", fmt.Sprintf("**%d. uyarıda** kullanıcıya **%s** susturma uygulanacak.", n, formatDuration(d))))
 	}
 	if args[0] == "appeal" {
 		v := first(args[1:], "")
 		if v == "kapalı" || v == "kapali" || v == "off" {
 			_ = b.db.SetConfig(c.guildID, "appeal_channel_id", "")
-			return c.text("İtiraz kanalı kapatıldı.")
+			return c.embed(successEmbed("📨 İtiraz Kanalı Kapatıldı", "Yeni itirazlar bir kanala yönlendirilmeyecek."))
 		}
 		id := mentionID(v)
 		ch, e := c.s.Channel(id)
@@ -432,7 +453,7 @@ func (b *Bot) modConfig(c *commandContext, args []string) error {
 			return fmt.Errorf("geçerli metin kanalı belirt")
 		}
 		_ = b.db.SetConfig(c.guildID, "appeal_channel_id", id)
-		return c.text("İtiraz kanalı <#" + id + "> olarak ayarlandı.")
+		return c.embed(successEmbed("📨 İtiraz Kanalı Güncellendi", "Yeni kanal: <#"+id+">"))
 	}
 	return fmt.Errorf("geçersiz modconfig işlemi")
 }
@@ -450,5 +471,5 @@ func (b *Bot) appeal(c *commandContext, args []string) error {
 	if _, e := c.s.ChannelMessageSendEmbed(channel, em); e != nil {
 		return e
 	}
-	return c.text("İtirazın yetkili ekibe iletildi.")
+	return c.embed(successEmbed("📨 İtiraz Gönderildi", "İtirazın yetkili ekibe güvenli şekilde iletildi."))
 }

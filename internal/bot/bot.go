@@ -28,9 +28,9 @@ type Bot struct {
 	ai             *aiClient
 }
 type confirmation struct {
-	UserID, GuildID string
-	Expires         time.Time
-	Action          func() error
+	UserID, GuildID, Title, Target, Reason, Details string
+	Expires                                         time.Time
+	Action                                          func() error
 }
 type embedDraft struct {
 	ChannelID, Content, Title, Description, Color, URL       string
