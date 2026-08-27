@@ -25,6 +25,7 @@ services:
       context: ./spoofdpi
     container_name: spoofdpi
     restart: unless-stopped
+    command: ["--no-tui", "--listen-addr", "0.0.0.0:8080"]
     expose:
       - "8080"
 
