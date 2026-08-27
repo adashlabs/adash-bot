@@ -21,7 +21,8 @@ services:
       - spoofdpi
 
   spoofdpi:
-    image: ghcr.io/xvzc/spoofdpi:latest
+    build:
+      context: ./spoofdpi
     container_name: spoofdpi
     restart: unless-stopped
     expose:
