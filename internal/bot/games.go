@@ -115,7 +115,7 @@ func (b *Bot) counting(m *discordgo.MessageCreate) {
 	value, ok := parsePositive(content)
 	same := g.CountingUserID.Valid && g.CountingUserID.String == m.Author.ID
 	if !ok || value != expected || same {
-		reset := b.db.ConfigBool(m.GuildID, "counting_reset_on_error", true)
+		reset := b.db.ConfigBool(m.GuildID, "counting_reset_on_error", false)
 		if reset {
 			_ = b.db.ResetGame(m.GuildID, "counting")
 		}
