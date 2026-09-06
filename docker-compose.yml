@@ -10,24 +10,39 @@ services:
       ADASH_DB_PATH: /app/data/adash.db
       GOMEMLIMIT: 64MiB
       GOGC: "50"
-      HTTP_PROXY: "http://spoofdpi:8080"
-      HTTPS_PROXY: "http://spoofdpi:8080"
+      HTTP_PROXY: "http://dpi:8080"
+      HTTPS_PROXY: "http://dpi:8080"
       NO_PROXY: "localhost,127.0.0.1"
     volumes:
       - adash-data:/app/data
     restart: unless-stopped
     mem_limit: 96m
     depends_on:
-      - spoofdpi
+      dpi:
+        condition: service_healthy
 
-  spoofdpi:
+  dpi:
     build:
-      context: ./spoofdpi
-    container_name: spoofdpi
+      context: ./dpi
+    container_name: adash-dpi
     restart: unless-stopped
-    command: ["--no-tui", "--listen-addr", "0.0.0.0:8080"]
+    environment:
+      BYEDPI_ARGS: "--split 1 --disorder 3+s --auto=torst --tlsrec 1+s"
     expose:
       - "8080"
+      - "1080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 2s
+    mem_limit: 32m
+    networks:
+      default:
+        aliases:
+          - spoofdpi
+          - dpi
 
 volumes:
   adash-data:

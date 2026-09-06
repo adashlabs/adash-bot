@@ -65,6 +65,12 @@ func New(cfg config.Config, db *database.DB) (*Bot, error) {
 	go b.janitor()
 	dg.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildMessages | discordgo.IntentsMessageContent | discordgo.IntentsGuildMembers
 	dg.AddHandler(b.ready)
+	dg.AddHandler(func(s *discordgo.Session, r *discordgo.Resumed) {
+		log.Println("Discord oturumu başarıyla devam ettirildi (Resumed)")
+	})
+	dg.AddHandler(func(s *discordgo.Session, d *discordgo.Disconnect) {
+		log.Println("Discord bağlantısı kesildi, otomatik olarak yeniden bağlanılıyor...")
+	})
 	dg.AddHandler(b.messageCreate)
 	dg.AddHandler(b.interactionCreate)
 	dg.AddHandler(b.guildCreate)
