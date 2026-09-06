@@ -1,6 +1,6 @@
 FROM alpine:3.21 AS builder
 
-RUN apk add --no-cache build-base git go
+RUN apk add --no-cache build-base git go linux-headers
 
 WORKDIR /build
 
