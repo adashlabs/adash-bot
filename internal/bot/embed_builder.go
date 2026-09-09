@@ -97,15 +97,15 @@ func embedBuilderAllowedMentions() *discordgo.MessageAllowedMentions {
 	}}
 }
 func textInput(id, label string, style discordgo.TextInputStyle, maxLength int, value string) discordgo.MessageComponent {
-	return row(discordgo.TextInput{CustomID: id, Label: label, Style: style, Required: false, MaxLength: maxLength, Value: value})
+	return row(discordgo.TextInput{CustomID: id, Label: trunc(label, 45), Style: style, Required: false, MaxLength: maxLength, Value: value})
 }
 
 func textInputRequired(id, label string, style discordgo.TextInputStyle, maxLength int, value string) discordgo.MessageComponent {
-	return row(discordgo.TextInput{CustomID: id, Label: label, Style: style, Required: true, MaxLength: maxLength, Value: value})
+	return row(discordgo.TextInput{CustomID: id, Label: trunc(label, 45), Style: style, Required: true, MaxLength: maxLength, Value: value})
 }
 
 func showEmbedModal(s *discordgo.Session, i *discordgo.InteractionCreate, kind, id, title string, inputs []discordgo.MessageComponent) error {
-	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseModal, Data: &discordgo.InteractionResponseData{CustomID: "embed_builder:modal:" + kind + ":" + id, Title: title, Components: inputs}})
+	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseModal, Data: &discordgo.InteractionResponseData{CustomID: "embed_builder:modal:" + kind + ":" + id, Title: trunc(title, 45), Components: inputs}})
 }
 
 func embedBuilderControls(id string, fieldCount int) []discordgo.MessageComponent {

@@ -40,13 +40,13 @@ func (b *Bot) giveawayEmbed(g database.Giveaway, entries int, ended bool, winner
 	prize := safeText(trunc(strings.TrimSpace(g.Prize), 1000))
 	em := &discordgo.MessageEmbed{
 		Title:       str(ended, "🏆 Çekiliş Sonucu", "🎉 Çekiliş"),
-		Description: fmt.Sprintf("🎁 **Ödül:** **%s**", prize),
 		Color:       strColor(ended, strColor(len(winners) > 0, colorSuccess, colorDanger), colorPrimary),
 		Footer:      &discordgo.MessageEmbedFooter{Text: fmt.Sprintf("Çekiliş #%d • Adash Çekiliş Sistemi", g.ID)},
 		Timestamp:   time.Now().Format(time.RFC3339),
 	}
 
 	if ended {
+		em.Description = fmt.Sprintf("🎁 **Ödül:** **%s**\n⏰ **Bitiş:** <t:%d:F> *(<t:%d:R>)*", prize, g.EndsAt/1000, g.EndsAt/1000)
 		winnerText := "Kazanan belirlenemedi (yeterli katılım yok)"
 		if len(winners) > 0 {
 			mentions := make([]string, len(winners))
@@ -59,10 +59,12 @@ func (b *Bot) giveawayEmbed(g database.Giveaway, entries int, ended bool, winner
 			&discordgo.MessageEmbedField{Name: "🏆 Kazananlar", Value: winnerText, Inline: false},
 			&discordgo.MessageEmbedField{Name: "👥 Toplam Katılım", Value: fmt.Sprintf("**%d** kişi", entries), Inline: true},
 			&discordgo.MessageEmbedField{Name: "👑 Düzenleyen", Value: "<@" + g.HostID + ">", Inline: true},
-			&discordgo.MessageEmbedField{Name: "🏁 Bitiş Tarihi", Value: fmt.Sprintf("<t:%d:F>", g.EndsAt/1000), Inline: false},
+			&discordgo.MessageEmbedField{Name: "🏁 Bitiş Tarihi", Value: fmt.Sprintf("<t:%d:F>\n*(<t:%d:R>)*", g.EndsAt/1000, g.EndsAt/1000), Inline: false},
 		)
 		return em
 	}
+
+	em.Description = fmt.Sprintf("🎁 **Ödül:** **%s**\n⏰ **Kalan Süre:** <t:%d:R> *(<t:%d:F>)*", prize, g.EndsAt/1000, g.EndsAt/1000)
 
 	em.Fields = append(em.Fields,
 		&discordgo.MessageEmbedField{Name: "⏰ Bitiş Zamanı", Value: fmt.Sprintf("<t:%d:R>\n<t:%d:F>", g.EndsAt/1000, g.EndsAt/1000), Inline: true},
@@ -318,8 +320,11 @@ func (b *Bot) giveawayWizardData(guildID string) (*discordgo.MessageEmbed, []dis
 		Fields: []*discordgo.MessageEmbedField{
 			{
 				Name: "📌 Hızlı Komut Kullanımı",
-				Value: "`" + b.db.Prefix(guildID) + "çekiliş <süre> <kazanan> <ödül>`\n" +
-					"Örnek: `" + b.db.Prefix(guildID) + "çekiliş 1h 1 Discord Nitro --davet=1`\n" +
+				Value: "`" + b.db.Prefix(guildID) + "çekiliş <süre/unix> <kazanan> <ödül>`\n" +
+					"Örnekler:\n" +
+					"• `" + b.db.Prefix(guildID) + "çekiliş 1h 1 Discord Nitro`\n" +
+					"• `" + b.db.Prefix(guildID) + "çekiliş 2d12h 2 Steam Key --davet=1`\n" +
+					"• `" + b.db.Prefix(guildID) + "çekiliş <t:1725900000:R> 1 Nitro Classic`\n" +
 					"Çarpan: `" + b.db.Prefix(guildID) + "çekiliş çarpan @Booster 2`",
 				Inline: false,
 			},
@@ -435,7 +440,7 @@ func (b *Bot) createGiveaway(c *commandContext, d time.Duration, winners int, pr
 	draft.MessageID = msg.ID
 	_, _ = c.s.ChannelMessageEditComplex(&discordgo.MessageEdit{Channel: msg.ChannelID, ID: msg.ID, Embeds: &[]*discordgo.MessageEmbed{b.giveawayEmbed(draft, 0, false, nil)}, Components: &[]discordgo.MessageComponent{giveawayButtons(draft, 0, false)[0]}})
 	b.scheduleGiveaway(draft)
-	return c.text(fmt.Sprintf("🎉 Çekiliş #%d başarıyla başlatıldı!", id))
+	return c.text(fmt.Sprintf("🎉 Çekiliş #%d başarıyla başlatıldı! Bitiş: <t:%d:R> (<t:%d:F>)", id, draft.EndsAt/1000, draft.EndsAt/1000))
 }
 
 func (b *Bot) scheduleGiveaway(g database.Giveaway) {
@@ -661,7 +666,7 @@ func (b *Bot) toggleGiveaway(s *discordgo.Session, i *discordgo.InteractionCreat
 		} else if multRole != "" && multVal > 1 {
 			lines = append(lines, fmt.Sprintf("💡 **Tavsiye:** <@&%s> rolünü alarak kazanma şansını **%dx** katına çıkarabilirsin!", multRole, multVal))
 		}
-		lines = append(lines, fmt.Sprintf("⏰ **Sonuç Tarihi:** <t:%d:R>", g.EndsAt/1000))
+		lines = append(lines, fmt.Sprintf("⏰ **Sonuç Tarihi:** <t:%d:R> *(<t:%d:F>)*", g.EndsAt/1000, g.EndsAt/1000))
 		lines = append(lines, "")
 		lines = append(lines, "> 🤫 *Pssst... Ben seni tutuyorum, aramızda kalsın kimseye söyleme! 😉*")
 		text = strings.Join(lines, "\n")
@@ -762,7 +767,7 @@ func (b *Bot) handleGiveawayMyChance(s *discordgo.Session, i *discordgo.Interact
 	} else if multRole != "" && multVal > 1 {
 		statusLines = append(statusLines, fmt.Sprintf("💡 **Tavsiye:** <@&%s> rolünü alarak kazanma şansını **%dx** katına çıkarabilirsin!", multRole, multVal))
 	}
-	statusLines = append(statusLines, fmt.Sprintf("⏰ **Sonuç:** <t:%d:R>", g.EndsAt/1000))
+	statusLines = append(statusLines, fmt.Sprintf("⏰ **Sonuç:** <t:%d:R> *(<t:%d:F>)*", g.EndsAt/1000, g.EndsAt/1000))
 	statusLines = append(statusLines, "")
 	statusLines = append(statusLines, "> 🤫 *Pssst... Ben seni tutuyorum, aramızda kalsın kimseye söyleme! 😉*")
 

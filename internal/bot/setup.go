@@ -77,10 +77,10 @@ func (b *Bot) setupModal(ses *discordgo.Session, i *discordgo.InteractionCreate,
 	var title, id string
 	var inputs []discordgo.MessageComponent
 	add := func(cid, label, value string, style discordgo.TextInputStyle, max int) {
-		inputs = append(inputs, row(discordgo.TextInput{CustomID: cid, Label: label, Style: style, Required: true, MaxLength: max, Value: trunc(value, max)}))
+		inputs = append(inputs, row(discordgo.TextInput{CustomID: cid, Label: trunc(label, 45), Style: style, Required: true, MaxLength: max, Value: trunc(value, max)}))
 	}
 	addOpt := func(cid, label, value string, style discordgo.TextInputStyle, max int) {
-		inputs = append(inputs, row(discordgo.TextInput{CustomID: cid, Label: label, Style: style, Required: false, MaxLength: max, Value: trunc(value, max)}))
+		inputs = append(inputs, row(discordgo.TextInput{CustomID: cid, Label: trunc(label, 45), Style: style, Required: false, MaxLength: max, Value: trunc(value, max)}))
 	}
 	switch kind {
 	case "messages":
@@ -117,15 +117,23 @@ func (b *Bot) setupModal(ses *discordgo.Session, i *discordgo.InteractionCreate,
 	case "create":
 		title = "🎉 Çekiliş Oluştur"
 		id = "setup_giveaway_create_modal"
-		add("duration", "Süre (10m, 2h, 3d)", "1h", discordgo.TextInputShort, 20)
-		add("winners", "Kazanan sayısı (1-20)", "1", discordgo.TextInputShort, 2)
+		add("duration", "Süre veya Unix Zamanı (Örn: 1h, 30m)", "1h", discordgo.TextInputShort, 30)
+		add("winners", "Kazanan Sayısı (1-20)", "1", discordgo.TextInputShort, 2)
 		add("prize", "Ödül", "", discordgo.TextInputParagraph, 1000)
-		addOpt("min_invites", "Minimum Davet Şartı (Örn: 1, boş bırakılabilir)", strconv.Itoa(b.db.ConfigInt(guild, "giveaway_min_invites", 0)), discordgo.TextInputShort, 4)
-		addOpt("min_days", "Minimum Hesap Yaşı (Gün, boş bırakılabilir)", strconv.Itoa(b.db.ConfigInt(guild, "giveaway_min_account_age_days", 0)), discordgo.TextInputShort, 4)
+		invVal := ""
+		if v := b.db.ConfigInt(guild, "giveaway_min_invites", 0); v > 0 {
+			invVal = strconv.Itoa(v)
+		}
+		addOpt("min_invites", "Minimum Davet Şartı (İsteğe bağlı)", invVal, discordgo.TextInputShort, 4)
+		ageVal := ""
+		if v := b.db.ConfigInt(guild, "giveaway_min_account_age_days", 0); v > 0 {
+			ageVal = strconv.Itoa(v)
+		}
+		addOpt("min_days", "Minimum Hesap Yaşı (Gün, opsiyonel)", ageVal, discordgo.TextInputShort, 4)
 	default:
 		return nil
 	}
-	return ses.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseModal, Data: &discordgo.InteractionResponseData{CustomID: id, Title: title, Components: inputs}})
+	return ses.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseModal, Data: &discordgo.InteractionResponseData{CustomID: id, Title: trunc(title, 45), Components: inputs}})
 }
 func modalValues(i *discordgo.InteractionCreate) map[string]string {
 	out := map[string]string{}

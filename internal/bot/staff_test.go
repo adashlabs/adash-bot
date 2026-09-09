@@ -54,3 +54,64 @@ func TestStaffPermissionRequirement(t *testing.T) {
 		t.Fatal("expected PermissionManageServer bit to match")
 	}
 }
+
+func TestAllModalLabelsWithinDiscordLimits(t *testing.T) {
+	labels := []string{
+		// Setup modals
+		"Hoş geldin mesajı",
+		"Görüşürüz mesajı",
+		"Panel başlığı",
+		"Panel açıklaması",
+		"Ticket karşılama mesajı",
+		"Düğme yazısı",
+		"Düğme emojisi",
+		"Sistem promptu",
+		"Minimum hesap yaşı (0-365)",
+		"Minimum davet sayısı (0-1000)",
+		"Kazanma Şansı Çarpanı (2-100)",
+		"Süre veya Unix Zamanı (Örn: 1h, 30m)",
+		"Kazanan Sayısı (1-20)",
+		"Ödül",
+		"Minimum Davet Şartı (İsteğe bağlı)",
+		"Minimum Hesap Yaşı (Gün, opsiyonel)",
+		// Staff modal
+		"İsim ve Yaşınız",
+		"Günlük Aktiflik Süreniz",
+		"Daha Önceki Yetkililik Deneyimleriniz",
+		"Neden Yetkili Olmak İstiyorsunuz?",
+		"Ek Notlar / Kendinizden Bahsedin",
+		// Ticket modals
+		"Konu",
+		"Sorunun / talebin",
+		"Öncelik: düşük / normal / yüksek / acil",
+		"Kapanış Sebebi / Notu",
+		"Üye ID",
+		"Yeni kanal adı",
+		// Embed builder
+		"Mesaj metni (embed dışında)",
+		"Başlık",
+		"Açıklama",
+		"Renk (#5865F2)",
+		"Başlık bağlantısı (https://)",
+		"Büyük görsel URL'si",
+		"Küçük görsel URL'si",
+		"Yazar adı",
+		"Yazar simgesi URL'si",
+		"Alt bilgi",
+		"Alt bilgi simgesi URL'si",
+		"Tarih gösterilsin mi? (evet/hayır)",
+		"Alan adı",
+		"Alan içeriği",
+		"Yan yana gösterilsin mi? (evet/hayır)",
+	}
+
+	for _, l := range labels {
+		if len([]rune(l)) > 45 {
+			t.Errorf("Modal etiketi 45 karakterden uzun olamaz (Discord API kuralı): %q (uzunluk: %d)", l, len([]rune(l)))
+		}
+		truncated := trunc(l, 45)
+		if len([]rune(truncated)) > 45 {
+			t.Errorf("trunc(label, 45) 45 karakter sınırını aşamaz: %q", truncated)
+		}
+	}
+}

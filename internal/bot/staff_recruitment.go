@@ -179,7 +179,7 @@ func (b *Bot) staffApplyModal(s *discordgo.Session, i *discordgo.InteractionCrea
 		}),
 		row(discordgo.TextInput{
 			CustomID:    "staff_about",
-			Label:       "Kendinizden Bahsedin / Eklemek İstedikleriniz",
+			Label:       "Ek Notlar / Kendinizden Bahsedin",
 			Placeholder: "İlgi alanlarınız, becerileriniz veya iletmek istediğiniz ek notlar (opsiyonel)",
 			Style:       discordgo.TextInputParagraph,
 			Required:    false,

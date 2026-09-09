@@ -231,7 +231,7 @@ func (b *Bot) ticketComponent(s *discordgo.Session, i *discordgo.InteractionCrea
 	return nil
 }
 func ticketModal(s *discordgo.Session, i *discordgo.InteractionCreate, id, title, inputID, label string, style discordgo.TextInputStyle, value string) error {
-	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseModal, Data: &discordgo.InteractionResponseData{CustomID: id, Title: title, Components: []discordgo.MessageComponent{row(discordgo.TextInput{CustomID: inputID, Label: label, Style: style, Required: id != "ticket_close_modal", Value: value, MaxLength: 500})}}})
+	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseModal, Data: &discordgo.InteractionResponseData{CustomID: id, Title: trunc(title, 45), Components: []discordgo.MessageComponent{row(discordgo.TextInput{CustomID: inputID, Label: trunc(label, 45), Style: style, Required: id != "ticket_close_modal", Value: value, MaxLength: 500})}}})
 }
 func (b *Bot) ticketAddFromModal(s *discordgo.Session, i *discordgo.InteractionCreate, v map[string]string) error {
 	c := &commandContext{b: b, s: s, guildID: i.GuildID, channelID: i.ChannelID, user: userOf(i), member: i.Member}

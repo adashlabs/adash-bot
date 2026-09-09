@@ -52,14 +52,65 @@ func parseDuration(s string) (time.Duration, error) {
 	if s == "0" {
 		return 0, nil
 	}
-	re := regexp.MustCompile(`^(\d+)(s|m|h|d|w)$`)
-	x := re.FindStringSubmatch(s)
-	if x == nil {
-		return 0, fmt.Errorf("süre 10s, 5m, 2h veya 3d biçiminde olmalı")
+
+	// 1. Discord timestamp formatı: <t:1725900000:R>, <t:1725900000:F> veya <t:1725900000>
+	tsRegex := regexp.MustCompile(`^<t:(\d{10,13})(?::[a-zA-Z])?>$`)
+	if m := tsRegex.FindStringSubmatch(s); m != nil {
+		rawTs, _ := strconv.ParseInt(m[1], 10, 64)
+		if len(m[1]) == 13 {
+			rawTs /= 1000
+		}
+		target := time.Unix(rawTs, 0)
+		diff := time.Until(target)
+		if diff <= 0 {
+			return 0, fmt.Errorf("belirtilen unix zamanı geçmişte kalmış")
+		}
+		return diff, nil
 	}
-	n, _ := strconv.ParseInt(x[1], 10, 64)
-	unit := map[string]time.Duration{"s": time.Second, "m": time.Minute, "h": time.Hour, "d": 24 * time.Hour, "w": 7 * 24 * time.Hour}[x[2]]
-	return time.Duration(n) * unit, nil
+
+	// 2. Ham Unix Timestamp: 10 haneli saniye (1725900000) veya 13 haneli milisaniye
+	if rawNumRegex := regexp.MustCompile(`^\d{10,13}$`); rawNumRegex.MatchString(s) {
+		rawTs, _ := strconv.ParseInt(s, 10, 64)
+		if len(s) == 13 {
+			rawTs /= 1000
+		}
+		if rawTs >= 1577836800 && rawTs <= 2524608000 {
+			target := time.Unix(rawTs, 0)
+			diff := time.Until(target)
+			if diff <= 0 {
+				return 0, fmt.Errorf("belirtilen unix zamanı geçmişte kalmış")
+			}
+			return diff, nil
+		}
+	}
+
+	// 3. Klasik ve bileşik süreler: 10s, 5m, 2h, 3d, 1w, 1d12h, 2h30m vb.
+	clean := strings.ReplaceAll(s, " ", "")
+	re := regexp.MustCompile(`(\d+)(s|m|h|d|w)`)
+	matches := re.FindAllStringSubmatch(clean, -1)
+	if len(matches) == 0 {
+		return 0, fmt.Errorf("süre 10m, 2h, 3d veya unix timestamp (örn: <t:1725900000:R>) biçiminde olmalı")
+	}
+
+	reconstruct := ""
+	var total time.Duration
+	unitMap := map[string]time.Duration{
+		"s": time.Second,
+		"m": time.Minute,
+		"h": time.Hour,
+		"d": 24 * time.Hour,
+		"w": 7 * 24 * time.Hour,
+	}
+	for _, match := range matches {
+		reconstruct += match[0]
+		n, _ := strconv.ParseInt(match[1], 10, 64)
+		total += time.Duration(n) * unitMap[match[2]]
+	}
+	if reconstruct != clean {
+		return 0, fmt.Errorf("süre 10m, 2h, 3d veya unix timestamp biçiminde olmalı")
+	}
+
+	return total, nil
 }
 func formatDuration(d time.Duration) string {
 	if d%(24*time.Hour) == 0 {
