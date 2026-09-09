@@ -59,7 +59,7 @@ func (b *Bot) giveawayEmbed(g database.Giveaway, entries int, ended bool, winner
 			&discordgo.MessageEmbedField{Name: "🏆 Kazananlar", Value: winnerText, Inline: false},
 			&discordgo.MessageEmbedField{Name: "👥 Toplam Katılım", Value: fmt.Sprintf("**%d** kişi", entries), Inline: true},
 			&discordgo.MessageEmbedField{Name: "👑 Düzenleyen", Value: "<@" + g.HostID + ">", Inline: true},
-			&discordgo.MessageEmbedField{Name: "🏁 Bitiş Tarihi", Value: fmt.Sprintf("<t:%d:F>", g.EndsAt/1000), Inline: true},
+			&discordgo.MessageEmbedField{Name: "🏁 Bitiş Tarihi", Value: fmt.Sprintf("<t:%d:R>", g.EndsAt/1000), Inline: true},
 		)
 		return em
 	}
@@ -70,7 +70,6 @@ func (b *Bot) giveawayEmbed(g database.Giveaway, entries int, ended bool, winner
 		&discordgo.MessageEmbedField{Name: "⏰ Kalan Süre", Value: fmt.Sprintf("<t:%d:R>", g.EndsAt/1000), Inline: true},
 		&discordgo.MessageEmbedField{Name: "🏆 Kazanan Sayısı", Value: fmt.Sprintf("**%d** kişi", g.WinnerCount), Inline: true},
 		&discordgo.MessageEmbedField{Name: "👥 Katılımcı", Value: fmt.Sprintf("**%d** kişi", entries), Inline: true},
-		&discordgo.MessageEmbedField{Name: "📅 Bitiş Zamanı", Value: fmt.Sprintf("<t:%d:F>", g.EndsAt/1000), Inline: true},
 		&discordgo.MessageEmbedField{Name: "👑 Düzenleyen", Value: "<@" + g.HostID + ">", Inline: true},
 	)
 
@@ -441,7 +440,7 @@ func (b *Bot) createGiveaway(c *commandContext, d time.Duration, winners int, pr
 	draft.MessageID = msg.ID
 	_, _ = c.s.ChannelMessageEditComplex(&discordgo.MessageEdit{Channel: msg.ChannelID, ID: msg.ID, Embeds: &[]*discordgo.MessageEmbed{b.giveawayEmbed(draft, 0, false, nil)}, Components: &[]discordgo.MessageComponent{giveawayButtons(draft, 0, false)[0]}})
 	b.scheduleGiveaway(draft)
-	return c.text(fmt.Sprintf("🎉 Çekiliş #%d başarıyla başlatıldı! Bitiş: <t:%d:R> (<t:%d:F>)", id, draft.EndsAt/1000, draft.EndsAt/1000))
+	return c.text(fmt.Sprintf("🎉 Çekiliş #%d başarıyla başlatıldı! Bitiş: <t:%d:R>", id, draft.EndsAt/1000))
 }
 
 func (b *Bot) scheduleGiveaway(g database.Giveaway) {
@@ -701,7 +700,6 @@ func (b *Bot) toggleGiveaway(s *discordgo.Session, i *discordgo.InteractionCreat
 			{Name: "🎲 Kazanma Şansınız", Value: giveawayChanceDetail(len(entries), g.WinnerCount), Inline: true},
 			{Name: "👥 Toplam Katılımcı", Value: fmt.Sprintf("**%d** kişi", len(entries)), Inline: true},
 			{Name: "⏰ Kalan Süre", Value: fmt.Sprintf("<t:%d:R>", g.EndsAt/1000), Inline: true},
-			{Name: "📅 Bitiş Tarihi", Value: fmt.Sprintf("<t:%d:F>", g.EndsAt/1000), Inline: true},
 			{Name: "👑 Düzenleyen", Value: fmt.Sprintf("<@%s>", g.HostID), Inline: true},
 		},
 		Footer:    &discordgo.MessageEmbedFooter{Text: fmt.Sprintf("Çekiliş #%d • Adash Çekiliş Sistemi", g.ID)},
@@ -825,7 +823,6 @@ func (b *Bot) handleGiveawayMyChance(s *discordgo.Session, i *discordgo.Interact
 				{Name: "🎲 Katılırsanız Şansınız", Value: giveawayChanceDetail(len(entries)+1, g.WinnerCount), Inline: true},
 				{Name: "👥 Mevcut Katılımcı", Value: fmt.Sprintf("**%d** kişi", len(entries)), Inline: true},
 				{Name: "⏰ Kalan Süre", Value: fmt.Sprintf("<t:%d:R>", g.EndsAt/1000), Inline: true},
-				{Name: "📅 Bitiş Zamanı", Value: fmt.Sprintf("<t:%d:F>", g.EndsAt/1000), Inline: true},
 			},
 			Footer:    &discordgo.MessageEmbedFooter{Text: fmt.Sprintf("Çekiliş #%d • Adash Çekiliş Sistemi", g.ID)},
 			Timestamp: time.Now().Format(time.RFC3339),
@@ -844,7 +841,6 @@ func (b *Bot) handleGiveawayMyChance(s *discordgo.Session, i *discordgo.Interact
 			{Name: "👥 Toplam Katılımcı", Value: fmt.Sprintf("**%d** kişi", len(entries)), Inline: true},
 			{Name: "🏆 Kazanan Sayısı", Value: fmt.Sprintf("**%d** kişi", g.WinnerCount), Inline: true},
 			{Name: "⏰ Kalan Süre", Value: fmt.Sprintf("<t:%d:R>", g.EndsAt/1000), Inline: true},
-			{Name: "📅 Bitiş Zamanı", Value: fmt.Sprintf("<t:%d:F>", g.EndsAt/1000), Inline: true},
 		},
 		Footer:    &discordgo.MessageEmbedFooter{Text: fmt.Sprintf("Çekiliş #%d • Adash Çekiliş Sistemi", g.ID)},
 		Timestamp: time.Now().Format(time.RFC3339),
