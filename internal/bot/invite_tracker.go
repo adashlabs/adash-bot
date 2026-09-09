@@ -152,7 +152,7 @@ func (b *Bot) inviteCommand(c *commandContext, args []string) error {
 			},
 		},
 		Footer: &discordgo.MessageEmbedFooter{
-			Text: "Net Davet = Katılan - Ayrılan - Şüpheli + Bonus • Adash Bot",
+			Text: "Net Davet = Katılan - Ayrılan + Bonus • Adash Bot",
 		},
 		Timestamp: time.Now().Format(time.RFC3339),
 	}

@@ -14,7 +14,7 @@ type InviteStats struct {
 }
 
 func (s InviteStats) Net() int {
-	n := s.Regular - s.Left - s.Fake + s.Bonus
+	n := s.Regular - s.Left + s.Bonus
 	if n < 0 {
 		return 0
 	}
@@ -79,7 +79,8 @@ func (d *DB) RecordMemberJoin(guildID, memberID, inviterID, code string, isFake 
 
 func (d *DB) RecordMemberLeave(guildID, memberID string) (string, error) {
 	var inviterID string
-	err := d.sql.QueryRow(`SELECT inviter_id FROM invited_members WHERE guild_id=? AND member_id=?`, guildID, memberID).Scan(&inviterID)
+	var isFake int
+	err := d.sql.QueryRow(`SELECT inviter_id, is_fake FROM invited_members WHERE guild_id=? AND member_id=?`, guildID, memberID).Scan(&inviterID, &isFake)
 	if err == sql.ErrNoRows {
 		return "", nil
 	}
@@ -87,7 +88,7 @@ func (d *DB) RecordMemberLeave(guildID, memberID string) (string, error) {
 		return "", err
 	}
 
-	if inviterID != "" {
+	if inviterID != "" && isFake == 0 {
 		_, err = d.sql.Exec(`INSERT INTO invites(guild_id, user_id, regular, "left", fake, bonus)
 			VALUES(?,?,0,1,0,0)
 			ON CONFLICT(guild_id, user_id) DO UPDATE SET "left"="left"+1`, guildID, inviterID)
@@ -113,7 +114,7 @@ func (d *DB) TopInviters(guildID string, limit int) ([]InviteStats, error) {
 	if limit <= 0 || limit > 50 {
 		limit = 10
 	}
-	rows, err := d.sql.Query(`SELECT guild_id, user_id, regular, "left", fake, bonus, (regular - "left" - fake + bonus) as net
+	rows, err := d.sql.Query(`SELECT guild_id, user_id, regular, "left", fake, bonus, (regular - "left" + bonus) as net
 		FROM invites
 		WHERE guild_id=? AND (regular > 0 OR bonus > 0)
 		ORDER BY net DESC, regular DESC

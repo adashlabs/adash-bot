@@ -15,9 +15,9 @@ func TestInviteStatsNetCalculation(t *testing.T) {
 		Fake:    1,
 		Bonus:   3,
 	}
-	// Net = 5 - 2 - 1 + 3 = 5
-	if got := stats.Net(); got != 5 {
-		t.Fatalf("beklenen net 5, bulunan %d", got)
+	// Net = 5 - 2 + 3 = 6
+	if got := stats.Net(); got != 6 {
+		t.Fatalf("beklenen net 6, bulunan %d", got)
 	}
 
 	// Negative net cases should be clamped to 0
