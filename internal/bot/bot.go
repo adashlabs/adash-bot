@@ -162,7 +162,7 @@ func (b *Bot) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 	name := strings.ToLower(parts[0])
 	args := parts[1:]
-	aliases := map[string]string{"sil": "clear", "temizle": "clear", "kurulum": "setup", "ayarlar": "setup", "yardım": "help", "yardim": "help", "komutlar": "help", "çekiliş": "giveaway", "cekilis": "giveaway", "çekilişyönet": "giveawaymanage", "cekilisyonet": "giveawaymanage", "uyar": "warn", "uyarı": "warn", "uyari": "warn", "uyarılar": "warnings", "uyarilar": "warnings", "uyarıtemizle": "clearwarns", "uyaritemizle": "clearwarns", "yasakla": "ban", "at": "kick", "sustur": "mute", "timeout": "mute", "susturmaaç": "unmute", "yasakaç": "unban", "yasakac": "unban", "vakalar": "cases", "modlog": "cases", "modayar": "modconfig", "kilit": "lock", "yavaşmod": "slowmode", "yavasmod": "slowmode", "kullanıcı": "userinfo", "kullanicibilgi": "userinfo", "sunucu": "serverinfo", "sunucubilgi": "serverinfo", "oyunlar": "games", "oyundurumu": "games", "yazıtura": "coinflip", "yazitura": "coinflip", "sihirliküre": "8ball", "sihirlikure": "8ball", "sekiztop": "8ball", "zar": "roll", "pp": "avatar", "sözlük": "tdk", "sozluk": "tdk", "webara": "wsearch", "itiraz": "appeal", "talep": "ticket", "ticketkurulum": "ticketsetup", "destekkur": "ticketsetup", "embedbuilder": "embed", "yetkilialim": "yetkili", "yetkilialım": "yetkili", "yetkili-alim": "yetkili", "yetkili-alım": "yetkili", "basvuru": "yetkili", "başvuru": "yetkili"}
+	aliases := map[string]string{"sil": "clear", "temizle": "clear", "kurulum": "setup", "ayarlar": "setup", "yardım": "help", "yardim": "help", "komutlar": "help", "çekiliş": "giveaway", "cekilis": "giveaway", "çekilişyönet": "giveawaymanage", "cekilisyonet": "giveawaymanage", "uyar": "warn", "uyarı": "warn", "uyari": "warn", "uyarılar": "warnings", "uyarilar": "warnings", "uyarıtemizle": "clearwarns", "uyaritemizle": "clearwarns", "yasakla": "ban", "at": "kick", "sustur": "mute", "timeout": "mute", "susturmaaç": "unmute", "yasakaç": "unban", "yasakac": "unban", "vakalar": "cases", "modlog": "cases", "modayar": "modconfig", "kilit": "lock", "yavaşmod": "slowmode", "yavasmod": "slowmode", "kullanıcı": "userinfo", "kullanicibilgi": "userinfo", "sunucu": "serverinfo", "sunucubilgi": "serverinfo", "oyunlar": "games", "oyundurumu": "games", "yazıtura": "coinflip", "yazitura": "coinflip", "sihirliküre": "8ball", "sihirlikure": "8ball", "sekiztop": "8ball", "zar": "roll", "pp": "avatar", "sözlük": "tdk", "sozluk": "tdk", "webara": "wsearch", "itiraz": "appeal", "talep": "ticket", "ticketkurulum": "ticketsetup", "destekkur": "ticketsetup", "embedbuilder": "embed", "yetkilialim": "yetkili", "yetkilialım": "yetkili", "yetkili-alim": "yetkili", "yetkili-alım": "yetkili", "yetkilialimi": "yetkili", "yetkilialımı": "yetkili", "basvuru": "yetkili", "başvuru": "yetkili"}
 	if x := aliases[name]; x != "" {
 		name = x
 	}
@@ -178,7 +178,7 @@ func (b *Bot) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	b.db.LogCommand(m.GuildID, m.Author.ID, name, strings.Join(args, " "))
 	if e := b.runPrefix(s, m, name, args); e != nil {
 		log.Printf("komut %s: %v", name, e)
-		_, _ = s.ChannelMessageSendEmbed(m.ChannelID, errorEmbed("Komut çalıştırılırken hata oluştu. Yetkileri ve rol sırasını kontrol et."))
+		_, _ = s.ChannelMessageSendEmbed(m.ChannelID, errorEmbed(trunc(e.Error(), 1800)))
 	}
 }
 func (b *Bot) pingEmbed(guild string) *discordgo.MessageEmbed {
