@@ -59,3 +59,38 @@ func TestGiveawayEasterEggMessage(t *testing.T) {
 		t.Fatal("beklenen espirili fısıltı metni eksik veya yanlış")
 	}
 }
+
+func TestGiveawayEmbedConditionsAndMultiplierFormatting(t *testing.T) {
+	b := &Bot{}
+	g := database.Giveaway{
+		ID:                42,
+		Prize:             "1 Aylık Discord Nitro",
+		WinnerCount:       2,
+		EndsAt:            1780000000000,
+		HostID:            "host999",
+		MinInvites:        1,
+		MinAccountAgeDays: 7,
+	}
+	g.RequiredRoleID.Valid = true
+	g.RequiredRoleID.String = "role777"
+
+	em := b.giveawayEmbed(g, 10, false, nil)
+	foundCond := false
+	for _, f := range em.Fields {
+		if f.Name == "🛡️ Katılım Koşulları" {
+			foundCond = true
+			if !strings.Contains(f.Value, "Davet Şartı") || !strings.Contains(f.Value, "1") {
+				t.Errorf("Davet şartı eksik: %s", f.Value)
+			}
+			if !strings.Contains(f.Value, "Hesap Yaşı") || !strings.Contains(f.Value, "7") {
+				t.Errorf("Hesap yaşı şartı eksik: %s", f.Value)
+			}
+			if !strings.Contains(f.Value, "Zorunlu Rol") || !strings.Contains(f.Value, "<@&role777>") {
+				t.Errorf("Zorunlu rol eksik: %s", f.Value)
+			}
+		}
+	}
+	if !foundCond {
+		t.Fatalf("🛡️ Katılım Koşulları alanı bulunamadı")
+	}
+}

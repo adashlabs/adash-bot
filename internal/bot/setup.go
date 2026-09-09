@@ -79,6 +79,9 @@ func (b *Bot) setupModal(ses *discordgo.Session, i *discordgo.InteractionCreate,
 	add := func(cid, label, value string, style discordgo.TextInputStyle, max int) {
 		inputs = append(inputs, row(discordgo.TextInput{CustomID: cid, Label: label, Style: style, Required: true, MaxLength: max, Value: trunc(value, max)}))
 	}
+	addOpt := func(cid, label, value string, style discordgo.TextInputStyle, max int) {
+		inputs = append(inputs, row(discordgo.TextInput{CustomID: cid, Label: label, Style: style, Required: false, MaxLength: max, Value: trunc(value, max)}))
+	}
 	switch kind {
 	case "messages":
 		s, _ := b.db.Settings(guild)
@@ -103,12 +106,22 @@ func (b *Bot) setupModal(ses *discordgo.Session, i *discordgo.InteractionCreate,
 		id = "setup_giveaway_modal:" + guild
 		add("min_account_age_days", "Minimum hesap yaşı (0-365)", strconv.Itoa(b.db.ConfigInt(guild, "giveaway_min_account_age_days", 0)), discordgo.TextInputShort, 3)
 		add("min_invites", "Minimum davet sayısı (0-1000)", strconv.Itoa(b.db.ConfigInt(guild, "giveaway_min_invites", 0)), discordgo.TextInputShort, 4)
+	case "giveaway_mult":
+		title = "🚀 Çekiliş Çarpan Katsayısı"
+		id = "setup_giveaway_mult_modal:" + guild
+		multVal := b.db.ConfigInt(guild, "giveaway_multiplier_value", 2)
+		if multVal < 2 {
+			multVal = 2
+		}
+		add("multiplier", "Kazanma Şansı Çarpanı (2-100)", strconv.Itoa(multVal), discordgo.TextInputShort, 3)
 	case "create":
 		title = "🎉 Çekiliş Oluştur"
 		id = "setup_giveaway_create_modal"
 		add("duration", "Süre (10m, 2h, 3d)", "1h", discordgo.TextInputShort, 20)
-		add("winners", "Kazanan sayısı", "1", discordgo.TextInputShort, 2)
+		add("winners", "Kazanan sayısı (1-20)", "1", discordgo.TextInputShort, 2)
 		add("prize", "Ödül", "", discordgo.TextInputParagraph, 1000)
+		addOpt("min_invites", "Minimum Davet Şartı (Örn: 1, boş bırakılabilir)", strconv.Itoa(b.db.ConfigInt(guild, "giveaway_min_invites", 0)), discordgo.TextInputShort, 4)
+		addOpt("min_days", "Minimum Hesap Yaşı (Gün, boş bırakılabilir)", strconv.Itoa(b.db.ConfigInt(guild, "giveaway_min_account_age_days", 0)), discordgo.TextInputShort, 4)
 	default:
 		return nil
 	}

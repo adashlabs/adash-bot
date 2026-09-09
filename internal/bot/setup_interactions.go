@@ -32,6 +32,9 @@ func (b *Bot) setupComponent(s *discordgo.Session, i *discordgo.InteractionCreat
 	if strings.HasPrefix(id, "setup_giveaway_rules:") {
 		return b.setupModal(s, i, "giveaway")
 	}
+	if strings.HasPrefix(id, "setup_giveaway_mult:") {
+		return b.setupModal(s, i, "giveaway_mult")
+	}
 	if strings.HasPrefix(id, "setup_giveaway_create_btn:") {
 		return b.setupModal(s, i, "create")
 	}
@@ -55,6 +58,21 @@ func (b *Bot) setupComponent(s *discordgo.Session, i *discordgo.InteractionCreat
 			e = b.db.SetConfig(i.GuildID, "ticket_support_role_id", "")
 		case "giveawayrole":
 			e = b.db.SetConfig(i.GuildID, "giveaway_required_role_id", "")
+			b.refreshGiveawayWizardIfApplicable(s, i)
+			return ephemeral(s, i, "🛡️ Çekiliş zorunlu katılım rolü kaldırıldı.")
+		case "giveawaymult":
+			_ = b.db.SetConfig(i.GuildID, "giveaway_multiplier_role_id", "")
+			_ = b.db.SetConfig(i.GuildID, "giveaway_multiplier_value", 1)
+			b.refreshGiveawayWizardIfApplicable(s, i)
+			return ephemeral(s, i, "🚀 Çekiliş çarpan rolü ve katsayısı kaldırıldı.")
+		case "giveawayall":
+			_ = b.db.SetConfig(i.GuildID, "giveaway_multiplier_role_id", "")
+			_ = b.db.SetConfig(i.GuildID, "giveaway_multiplier_value", 1)
+			_ = b.db.SetConfig(i.GuildID, "giveaway_required_role_id", "")
+			_ = b.db.SetConfig(i.GuildID, "giveaway_min_account_age_days", 0)
+			_ = b.db.SetConfig(i.GuildID, "giveaway_min_invites", 0)
+			b.refreshGiveawayWizardIfApplicable(s, i)
+			return ephemeral(s, i, "🧹 Çekiliş katılım şartları ve çarpan ayarlarının tamamı sıfırlandı.")
 		case "aichannel":
 			e = b.db.SetSetting(i.GuildID, "ai_channel_id", nil)
 		}
@@ -88,8 +106,26 @@ func (b *Bot) setupComponent(s *discordgo.Session, i *discordgo.InteractionCreat
 		if subject == "autorole" {
 			e = b.db.SetSetting(i.GuildID, "autorole_id", values[0])
 		} else {
-			key := map[string]string{"ticketsupport": "ticket_support_role_id", "giveawayrole": "giveaway_required_role_id"}[subject]
-			e = b.db.SetConfig(i.GuildID, key, values[0])
+			key := map[string]string{
+				"ticketsupport":    "ticket_support_role_id",
+				"giveawayrole":     "giveaway_required_role_id",
+				"giveawaymultrole": "giveaway_multiplier_role_id",
+			}[subject]
+			if key != "" {
+				e = b.db.SetConfig(i.GuildID, key, values[0])
+			}
+			if subject == "giveawaymultrole" {
+				if b.db.ConfigInt(i.GuildID, "giveaway_multiplier_value", 1) < 2 {
+					_ = b.db.SetConfig(i.GuildID, "giveaway_multiplier_value", 2)
+				}
+				mult := b.db.ConfigInt(i.GuildID, "giveaway_multiplier_value", 2)
+				b.refreshGiveawayWizardIfApplicable(s, i)
+				return ephemeral(s, i, fmt.Sprintf("🚀 Çekiliş çarpan rolü <@&%s> olarak ayarlandı! Çarpan katsayısı: **%dx**", values[0], mult))
+			}
+			if subject == "giveawayrole" {
+				b.refreshGiveawayWizardIfApplicable(s, i)
+				return ephemeral(s, i, fmt.Sprintf("🛡️ Çekiliş zorunlu katılım rolü <@&%s> olarak ayarlandı!", values[0]))
+			}
 		}
 		if e != nil {
 			return e
@@ -166,7 +202,21 @@ func (b *Bot) modalSubmit(s *discordgo.Session, i *discordgo.InteractionCreate) 
 				_ = b.db.SetConfig(i.GuildID, "giveaway_min_invites", invN)
 			}
 		}
+		b.refreshGiveawayWizardIfApplicable(s, i)
 		return ephemeral(s, i, "Çekiliş kuralları kaydedildi.")
+	case strings.HasPrefix(id, "setup_giveaway_mult_modal:"):
+		m, err := strconv.Atoi(v["multiplier"])
+		if err != nil || m < 2 || m > 100 {
+			return fmt.Errorf("çarpan 2–100 arasında bir tam sayı olmalı (örn: 2)")
+		}
+		_ = b.db.SetConfig(i.GuildID, "giveaway_multiplier_value", m)
+		roleID := b.db.ConfigString(i.GuildID, "giveaway_multiplier_role_id", "")
+		roleText := ""
+		if roleID != "" {
+			roleText = fmt.Sprintf(" (<@&%s> rolü için)", roleID)
+		}
+		b.refreshGiveawayWizardIfApplicable(s, i)
+		return ephemeral(s, i, fmt.Sprintf("🚀 Çekiliş kazanma şansı çarpanı **%dx** olarak ayarlandı%s.", m, roleText))
 	case id == "setup_giveaway_create_modal":
 		d, e := parseDuration(v["duration"])
 		if e != nil || d < 10*time.Second {
@@ -176,9 +226,16 @@ func (b *Bot) modalSubmit(s *discordgo.Session, i *discordgo.InteractionCreate) 
 		if e != nil || n < 1 || n > 20 {
 			return fmt.Errorf("kazanan sayısı 1–20 olmalı")
 		}
+		prize := v["prize"]
+		if sInv, ok := v["min_invites"]; ok && strings.TrimSpace(sInv) != "" {
+			prize += " --davet=" + strings.TrimSpace(sInv)
+		}
+		if sDays, ok := v["min_days"]; ok && strings.TrimSpace(sDays) != "" {
+			prize += " --yas=" + strings.TrimSpace(sDays)
+		}
 		_ = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseDeferredChannelMessageWithSource})
 		c := &commandContext{b: b, s: s, guildID: i.GuildID, channelID: i.ChannelID, user: userOf(i), member: i.Member, interaction: i}
-		return b.createGiveaway(c, d, n, v["prize"])
+		return b.createGiveaway(c, d, n, prize)
 	case strings.HasPrefix(id, "ticket_open_modal"):
 		return b.openTicketFromModal(s, i, v)
 	case strings.HasPrefix(id, "ticket_add_modal"):
