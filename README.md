@@ -1,6 +1,6 @@
 # Adash Bot — Go sürümü
 
-Adash; moderasyon, ticket, çekiliş, kanal oyunları, karşılama, TDK/web araması ve OpenAI uyumlu sohbet özellikleri olan Discord botudur. Bu sürüm düşük RAM tüketimi için Go ile tek süreç ve tek shard olarak çalışır.
+Adash; moderasyon, ticket, çekiliş, yetkili alım sistemi, kanal oyunları, karşılama, TDK/web araması ve OpenAI uyumlu sohbet özellikleri olan Discord botudur. Bu sürüm düşük RAM tüketimi için Go ile tek süreç ve tek shard olarak çalışır.
 
 ## Veri uyumluluğu
 

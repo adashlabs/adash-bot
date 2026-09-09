@@ -158,6 +158,14 @@ func slashArgs(name, sub string, o map[string]string) (string, []string) {
 			return "modconfig", []string{"warn", o["esik"], o["sure"]}
 		}
 		return "modconfig", []string{"appeal", valueOr(o["kanal"], "kapalı")}
+	case "yetkili":
+		if sub == "kanal" {
+			return "yetkili", compact(o["kanal"])
+		}
+		if sub != "" {
+			return "yetkili", []string{sub}
+		}
+		return "yetkili", nil
 	default:
 		return name, nil
 	}
@@ -195,6 +203,12 @@ func (b *Bot) component(s *discordgo.Session, i *discordgo.InteractionCreate) er
 	}
 	if strings.HasPrefix(id, "ticket_") {
 		return b.ticketComponent(s, i)
+	}
+	if id == "staff_apply_btn" {
+		return b.staffApplyModal(s, i)
+	}
+	if strings.HasPrefix(id, "staff_app_action:") {
+		return b.handleStaffAction(s, i)
 	}
 	if strings.HasPrefix(id, "embed_builder:") {
 		return b.embedComponent(s, i)
@@ -264,6 +278,6 @@ func (b *Bot) confirmComponent(s *discordgo.Session, i *discordgo.InteractionCre
 }
 func (b *Bot) helpCategory(guild, section string) *discordgo.MessageEmbed {
 	p := b.db.Prefix(guild)
-	items := map[string]string{"genel": "`ping`, `yardim`, `kurulum`, `prefix`", "moderasyon": "`ban`, `kick`, `mute`, `unmute`, `warn`, `uyarilar`, `uyaritemizle`, `temizle`, `kilit`, `yavasmod`, `cases`, `itiraz`", "sistemler": "`ticketsetup`, `ticket`, `cekilis`, `cekilisyonet`, `oyunlar`", "araclar": "`tdk`, `webara`, `kullanici`, `sunucu`, `avatar`, `zar`, `yazitura`, `sekiztop`, `embed`"}
+	items := map[string]string{"genel": "`ping`, `yardim`, `kurulum`, `prefix`", "moderasyon": "`ban`, `kick`, `mute`, `unmute`, `warn`, `uyarilar`, `uyaritemizle`, `temizle`, `kilit`, `yavasmod`, `cases`, `itiraz`", "sistemler": "`ticketsetup`, `ticket`, `cekilis`, `cekilisyonet`, `yetkili`, `oyunlar`", "araclar": "`tdk`, `webara`, `kullanici`, `sunucu`, `avatar`, `zar`, `yazitura`, `sekiztop`, `embed`"}
 	return embed("📖 "+strings.ToUpper(section), items[section]+"\n\nPrefix: `"+p+"`", colorPrimary)
 }

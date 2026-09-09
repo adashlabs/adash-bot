@@ -119,7 +119,7 @@ func (d *DB) GiveawayEntries(id int64) ([]string, error) {
 }
 func (d *DB) TableCounts() (map[string]int64, error) {
 	out := map[string]int64{}
-	for _, t := range []string{"guilds", "users", "guild_settings", "command_logs", "mod_logs", "warnings", "game_states", "word_game_used", "guild_config", "tickets", "giveaways", "giveaway_entries"} {
+	for _, t := range []string{"guilds", "users", "guild_settings", "command_logs", "mod_logs", "warnings", "game_states", "word_game_used", "guild_config", "tickets", "giveaways", "giveaway_entries", "staff_applications"} {
 		var n int64
 		if e := d.sql.QueryRow(`SELECT COUNT(*) FROM ` + t).Scan(&n); e != nil {
 			return nil, e

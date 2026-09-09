@@ -74,7 +74,7 @@ func (b *Bot) setupComponent(s *discordgo.Session, i *discordgo.InteractionCreat
 		if col := settings[subject]; col != "" {
 			e = b.db.SetSetting(i.GuildID, col, val)
 		} else {
-			key := map[string]string{"giveawaylog": "giveaway_log_channel_id", "appeal": "appeal_channel_id"}[subject]
+			key := map[string]string{"giveawaylog": "giveaway_log_channel_id", "appeal": "appeal_channel_id", "stafflog": "staff_app_log_channel_id"}[subject]
 			if key != "" {
 				e = b.db.SetConfig(i.GuildID, key, val)
 			}
@@ -183,6 +183,10 @@ func (b *Bot) modalSubmit(s *discordgo.Session, i *discordgo.InteractionCreate) 
 		return b.closeTicketFromModal(s, i, v)
 	case strings.HasPrefix(id, "embed_builder:modal:"):
 		return b.saveEmbedModal(s, i, v)
+	case id == "staff_apply_modal":
+		return b.handleStaffModalSubmit(s, i, v)
+	case strings.HasPrefix(id, "staff_app_reject_modal:"):
+		return b.handleStaffRejectModalSubmit(s, i, v)
 	}
 	return nil
 }

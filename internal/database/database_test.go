@@ -21,8 +21,8 @@ func TestSchemaAndIntegrity(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if len(counts) != 12 {
-		t.Fatalf("beklenen 12 tablo, bulunan %d", len(counts))
+	if len(counts) != 13 {
+		t.Fatalf("beklenen 13 tablo, bulunan %d", len(counts))
 	}
 }
 func TestExistingDatabaseCompatibility(t *testing.T) {
