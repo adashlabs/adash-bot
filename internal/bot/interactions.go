@@ -198,6 +198,15 @@ func (b *Bot) component(s *discordgo.Session, i *discordgo.InteractionCreate) er
 		_ = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseDeferredMessageUpdate})
 		return b.toggleGiveaway(s, i)
 	}
+	if strings.HasPrefix(id, "giveaway_mychance:") {
+		return b.handleGiveawayMyChance(s, i)
+	}
+	if strings.HasPrefix(id, "giveaway_participants:") {
+		return b.handleGiveawayParticipants(s, i)
+	}
+	if strings.HasPrefix(id, "giveaway_reroll:") {
+		return b.handleGiveawayRerollButton(s, i)
+	}
 	if id == "ticket_open" {
 		return b.ticketOpenModal(s, i)
 	}
