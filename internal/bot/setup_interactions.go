@@ -174,6 +174,9 @@ func (b *Bot) setupComponent(s *discordgo.Session, i *discordgo.InteractionCreat
 func ephemeral(s *discordgo.Session, i *discordgo.InteractionCreate, text string) error {
 	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: &discordgo.InteractionResponseData{Content: text, Flags: discordgo.MessageFlagsEphemeral}})
 }
+func ephemeralEmbed(s *discordgo.Session, i *discordgo.InteractionCreate, em *discordgo.MessageEmbed) error {
+	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseChannelMessageWithSource, Data: &discordgo.InteractionResponseData{Embeds: []*discordgo.MessageEmbed{em}, Flags: discordgo.MessageFlagsEphemeral}})
+}
 func (b *Bot) modalSubmit(s *discordgo.Session, i *discordgo.InteractionCreate) error {
 	id := i.ModalSubmitData().CustomID
 	v := modalValues(i)

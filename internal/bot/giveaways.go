@@ -46,7 +46,7 @@ func (b *Bot) giveawayEmbed(g database.Giveaway, entries int, ended bool, winner
 	}
 
 	if ended {
-		em.Description = fmt.Sprintf("🎁 **Ödül:** **%s**\n⏰ **Bitiş:** <t:%d:F> *(<t:%d:R>)*", prize, g.EndsAt/1000, g.EndsAt/1000)
+		em.Description = fmt.Sprintf("🎁 **Ödül:** **%s**\n\nÇekiliş sonuçlandı ve kazanan talihliler belirlendi!", prize)
 		winnerText := "Kazanan belirlenemedi (yeterli katılım yok)"
 		if len(winners) > 0 {
 			mentions := make([]string, len(winners))
@@ -59,17 +59,19 @@ func (b *Bot) giveawayEmbed(g database.Giveaway, entries int, ended bool, winner
 			&discordgo.MessageEmbedField{Name: "🏆 Kazananlar", Value: winnerText, Inline: false},
 			&discordgo.MessageEmbedField{Name: "👥 Toplam Katılım", Value: fmt.Sprintf("**%d** kişi", entries), Inline: true},
 			&discordgo.MessageEmbedField{Name: "👑 Düzenleyen", Value: "<@" + g.HostID + ">", Inline: true},
-			&discordgo.MessageEmbedField{Name: "🏁 Bitiş Tarihi", Value: fmt.Sprintf("<t:%d:F>\n*(<t:%d:R>)*", g.EndsAt/1000, g.EndsAt/1000), Inline: false},
+			&discordgo.MessageEmbedField{Name: "🏁 Bitiş Tarihi", Value: fmt.Sprintf("<t:%d:F>", g.EndsAt/1000), Inline: true},
 		)
 		return em
 	}
 
-	em.Description = fmt.Sprintf("🎁 **Ödül:** **%s**\n⏰ **Kalan Süre:** <t:%d:R> *(<t:%d:F>)*", prize, g.EndsAt/1000, g.EndsAt/1000)
+	em.Description = fmt.Sprintf("🎁 **Ödül:** **%s**\n\nÇekilişe katılmak ve şansınızı denemek için aşağıdaki **🎉 Katıl** butonuna tıklayın!", prize)
 
 	em.Fields = append(em.Fields,
-		&discordgo.MessageEmbedField{Name: "⏰ Bitiş Zamanı", Value: fmt.Sprintf("<t:%d:R>\n<t:%d:F>", g.EndsAt/1000, g.EndsAt/1000), Inline: true},
+		&discordgo.MessageEmbedField{Name: "⏰ Kalan Süre", Value: fmt.Sprintf("<t:%d:R>", g.EndsAt/1000), Inline: true},
 		&discordgo.MessageEmbedField{Name: "🏆 Kazanan Sayısı", Value: fmt.Sprintf("**%d** kişi", g.WinnerCount), Inline: true},
 		&discordgo.MessageEmbedField{Name: "👥 Katılımcı", Value: fmt.Sprintf("**%d** kişi", entries), Inline: true},
+		&discordgo.MessageEmbedField{Name: "📅 Bitiş Zamanı", Value: fmt.Sprintf("<t:%d:F>", g.EndsAt/1000), Inline: true},
+		&discordgo.MessageEmbedField{Name: "👑 Düzenleyen", Value: "<@" + g.HostID + ">", Inline: true},
 	)
 
 	var conditions []string
@@ -100,7 +102,6 @@ func (b *Bot) giveawayEmbed(g database.Giveaway, entries int, ended bool, winner
 		}
 	}
 
-	em.Fields = append(em.Fields, &discordgo.MessageEmbedField{Name: "👑 Düzenleyen", Value: "<@" + g.HostID + ">", Inline: true})
 	return em
 }
 
@@ -601,8 +602,15 @@ func (b *Bot) sendGiveawayWinDM(g database.Giveaway, userID string) {
 func (b *Bot) toggleGiveaway(s *discordgo.Session, i *discordgo.InteractionCreate) error {
 	g, e := b.db.GiveawayByMessage(i.Message.ID)
 	if e != nil || g.EndedAt.Valid || g.EndsAt <= time.Now().UnixMilli() {
-		return b.followInteraction(s, i, "Bu çekiliş artık aktif değil.")
+		em := &discordgo.MessageEmbed{
+			Title:       "⚠️ Çekiliş Aktif Değil",
+			Description: "Bu çekilişin süresi dolmuş veya sonlandırılmış.",
+			Color:       colorDanger,
+		}
+		return b.followInteractionEmbed(s, i, em)
 	}
+
+	var missingReqs []string
 	if g.RequiredRoleID.Valid && g.RequiredRoleID.String != "" {
 		found := false
 		if i.Member != nil {
@@ -614,19 +622,31 @@ func (b *Bot) toggleGiveaway(s *discordgo.Session, i *discordgo.InteractionCreat
 			}
 		}
 		if !found {
-			return b.followInteraction(s, i, "❌ Katılmak için <@&"+g.RequiredRoleID.String+"> rolüne sahip olmalısın.")
+			missingReqs = append(missingReqs, fmt.Sprintf("• 🏷️ **Zorunlu Rol:** <@&%s> rolüne sahip olmalısınız.", g.RequiredRoleID.String))
 		}
 	}
 	age := int(time.Since(snowflakeTime(userOf(i).ID)).Hours() / 24)
 	if age < g.MinAccountAgeDays {
-		return b.followInteraction(s, i, fmt.Sprintf("❌ Hesabın en az %d günlük olmalı. Mevcut hesap yaşın: %d gün.", g.MinAccountAgeDays, age))
+		missingReqs = append(missingReqs, fmt.Sprintf("• ⏳ **Hesap Yaşı:** Discord hesabınız en az **%d** günlük olmalı (Mevcut hesap yaşınız: **%d** gün).", g.MinAccountAgeDays, age))
 	}
 	if g.MinInvites > 0 {
 		userInvites := b.db.UserNetInvites(g.GuildID, userOf(i).ID)
 		if userInvites < g.MinInvites {
-			return b.followInteraction(s, i, fmt.Sprintf("❌ Bu çekilişe katılabilmek için en az **%d** geçerli davetinin olması gerekir!\n📊 Senin mevcut net davetin: **%d**\n💡 Bir arkadaşını sunucuya davet ederek hemen katılabilirsin!", g.MinInvites, userInvites))
+			missingReqs = append(missingReqs, fmt.Sprintf("• 📨 **Davet Şartı:** En az **%d** geçerli davetiniz olmalı (Mevcut net: **%d**).\n  ↳ 💡 *Sunucuya bir arkadaşınızı davet ederek hemen katılabilirsiniz!*", g.MinInvites, userInvites))
 		}
 	}
+
+	if len(missingReqs) > 0 {
+		em := &discordgo.MessageEmbed{
+			Title:       "⚠️ Çekiliş Katılım Şartları Karşılanamadı",
+			Color:       colorDanger,
+			Description: fmt.Sprintf("**%s** çekilişine katılabilmeniz için aşağıdaki şartları sağlamanız gerekmektedir:\n\n%s", g.Prize, strings.Join(missingReqs, "\n\n")),
+			Footer:      &discordgo.MessageEmbedFooter{Text: fmt.Sprintf("Çekiliş #%d • Adash Çekiliş Sistemi", g.ID)},
+			Timestamp:   time.Now().Format(time.RFC3339),
+		}
+		return b.followInteractionEmbed(s, i, em)
+	}
+
 	joined, e := b.db.JoinGiveaway(g.ID, userOf(i).ID)
 	if e != nil {
 		return e
@@ -642,36 +662,73 @@ func (b *Bot) toggleGiveaway(s *discordgo.Session, i *discordgo.InteractionCreat
 	if e != nil {
 		return e
 	}
-	text := "🚪 Çekilişten ayrıldınız. Çekiliş bitmeden önce dilediğiniz zaman tekrar katılabilirsiniz."
-	if joined {
-		multRole := b.db.ConfigString(g.GuildID, "giveaway_multiplier_role_id", "")
-		multVal := b.db.ConfigInt(g.GuildID, "giveaway_multiplier_value", 1)
-		userMultiplier := 1
-		if multRole != "" && multVal > 1 && i.Member != nil {
-			for _, r := range i.Member.Roles {
-				if r == multRole {
-					userMultiplier = multVal
-					break
-				}
+
+	if !joined {
+		em := &discordgo.MessageEmbed{
+			Title:       "🚪 Çekilişten Ayrıldınız",
+			Color:       colorWarning,
+			Description: fmt.Sprintf("**%s** çekilişinden katılım kaydınız silindi.\n\nÇekiliş sona ermeden önce dilediğiniz zaman tekrar katılabilirsiniz.", g.Prize),
+			Fields: []*discordgo.MessageEmbedField{
+				{Name: "🎁 Ödül", Value: g.Prize, Inline: true},
+				{Name: "👥 Kalan Katılımcı", Value: fmt.Sprintf("**%d** kişi", len(entries)), Inline: true},
+				{Name: "⏰ Kalan Süre", Value: fmt.Sprintf("<t:%d:R>", g.EndsAt/1000), Inline: true},
+			},
+			Footer:    &discordgo.MessageEmbedFooter{Text: fmt.Sprintf("Çekiliş #%d • Adash Çekiliş Sistemi", g.ID)},
+			Timestamp: time.Now().Format(time.RFC3339),
+		}
+		return b.followInteractionEmbed(s, i, em)
+	}
+
+	multRole := b.db.ConfigString(g.GuildID, "giveaway_multiplier_role_id", "")
+	multVal := b.db.ConfigInt(g.GuildID, "giveaway_multiplier_value", 1)
+	userMultiplier := 1
+	if multRole != "" && multVal > 1 && i.Member != nil {
+		for _, r := range i.Member.Roles {
+			if r == multRole {
+				userMultiplier = multVal
+				break
 			}
 		}
-
-		var lines []string
-		lines = append(lines, "🎉 **Çekilişe katılımınız başarıyla kaydedildi!**", "")
-		lines = append(lines, fmt.Sprintf("🎁 **Ödül:** **%s**", g.Prize))
-		lines = append(lines, fmt.Sprintf("👥 **Toplam Katılımcı:** **%d** kişi", len(entries)))
-		lines = append(lines, fmt.Sprintf("🎲 **Tahmini Kazanma Şansınız:** **%s**", giveawayChanceDetail(len(entries), g.WinnerCount)))
-		if userMultiplier > 1 {
-			lines = append(lines, fmt.Sprintf("🚀 **Çarpan Bonusu:** <@&%s> rolüne sahip olduğunuz için **%dx** kat şansınız var!", multRole, userMultiplier))
-		} else if multRole != "" && multVal > 1 {
-			lines = append(lines, fmt.Sprintf("💡 **Tavsiye:** <@&%s> rolünü alarak kazanma şansını **%dx** katına çıkarabilirsin!", multRole, multVal))
-		}
-		lines = append(lines, fmt.Sprintf("⏰ **Sonuç Tarihi:** <t:%d:R> *(<t:%d:F>)*", g.EndsAt/1000, g.EndsAt/1000))
-		lines = append(lines, "")
-		lines = append(lines, "> 🤫 *Pssst... Ben seni tutuyorum, aramızda kalsın kimseye söyleme! 😉*")
-		text = strings.Join(lines, "\n")
 	}
-	return b.followInteraction(s, i, text)
+
+	em := &discordgo.MessageEmbed{
+		Title:       "🎉 Çekilişe Başarıyla Katıldınız!",
+		Color:       colorSuccess,
+		Thumbnail:   &discordgo.MessageEmbedThumbnail{URL: userOf(i).AvatarURL("256")},
+		Description: fmt.Sprintf("Harika haber! **%s** çekilişine katılım kaydınız başarıyla oluşturuldu.", g.Prize),
+		Fields: []*discordgo.MessageEmbedField{
+			{Name: "🎁 Ödül", Value: g.Prize, Inline: true},
+			{Name: "🎲 Kazanma Şansınız", Value: giveawayChanceDetail(len(entries), g.WinnerCount), Inline: true},
+			{Name: "👥 Toplam Katılımcı", Value: fmt.Sprintf("**%d** kişi", len(entries)), Inline: true},
+			{Name: "⏰ Kalan Süre", Value: fmt.Sprintf("<t:%d:R>", g.EndsAt/1000), Inline: true},
+			{Name: "📅 Bitiş Tarihi", Value: fmt.Sprintf("<t:%d:F>", g.EndsAt/1000), Inline: true},
+			{Name: "👑 Düzenleyen", Value: fmt.Sprintf("<@%s>", g.HostID), Inline: true},
+		},
+		Footer:    &discordgo.MessageEmbedFooter{Text: fmt.Sprintf("Çekiliş #%d • Adash Çekiliş Sistemi", g.ID)},
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+
+	if userMultiplier > 1 {
+		em.Fields = append(em.Fields, &discordgo.MessageEmbedField{
+			Name:   "🚀 Çarpan Bonusu Aktif!",
+			Value:  fmt.Sprintf("🌟 <@&%s> rolünüz sayesinde bu çekilişte **%dx kat daha fazla kazanma şansınız** *(%d kat bilet)* var!", multRole, userMultiplier, userMultiplier),
+			Inline: false,
+		})
+	} else if multRole != "" && multVal > 1 {
+		em.Fields = append(em.Fields, &discordgo.MessageEmbedField{
+			Name:   "💡 Kazanma Şansınızı Katlayın",
+			Value:  fmt.Sprintf("Sunucumuzda <@&%s> rolünü edinerek kazanma şansınızı **%dx katına** çıkarabilirsiniz!", multRole, multVal),
+			Inline: false,
+		})
+	}
+
+	em.Fields = append(em.Fields, &discordgo.MessageEmbedField{
+		Name:   "🤫 Özel Fısıltı",
+		Value:  "> *Pssst... Ben seni tutuyorum, aramızda kalsın kimseye söyleme! 😉*",
+		Inline: false,
+	})
+
+	return b.followInteractionEmbed(s, i, em)
 }
 
 func (b *Bot) handleGiveawayMyChance(s *discordgo.Session, i *discordgo.InteractionCreate) error {
@@ -686,7 +743,12 @@ func (b *Bot) handleGiveawayMyChance(s *discordgo.Session, i *discordgo.Interact
 
 	g, err := b.db.GiveawayByID(id)
 	if err != nil {
-		return ephemeral(s, i, "⚠️ Çekiliş bulunamadı veya silinmiş.")
+		em := &discordgo.MessageEmbed{
+			Title:       "⚠️ Çekiliş Bulunamadı",
+			Description: "Aradığınız çekiliş bulunamadı veya silinmiş olabilir.",
+			Color:       colorDanger,
+		}
+		return ephemeralEmbed(s, i, em)
 	}
 
 	entries, err := b.db.GiveawayEntries(g.ID)
@@ -703,6 +765,18 @@ func (b *Bot) handleGiveawayMyChance(s *discordgo.Session, i *discordgo.Interact
 		}
 	}
 
+	multRole := b.db.ConfigString(g.GuildID, "giveaway_multiplier_role_id", "")
+	multVal := b.db.ConfigInt(g.GuildID, "giveaway_multiplier_value", 1)
+	userMultiplier := 1
+	if multRole != "" && multVal > 1 && i.Member != nil {
+		for _, r := range i.Member.Roles {
+			if r == multRole {
+				userMultiplier = multVal
+				break
+			}
+		}
+	}
+
 	if !isEntered {
 		var missingReqs []string
 		if g.RequiredRoleID.Valid && g.RequiredRoleID.String != "" {
@@ -716,62 +790,87 @@ func (b *Bot) handleGiveawayMyChance(s *discordgo.Session, i *discordgo.Interact
 				}
 			}
 			if !hasRole {
-				missingReqs = append(missingReqs, "• <@&"+g.RequiredRoleID.String+"> rolüne sahip olmalısınız.")
+				missingReqs = append(missingReqs, fmt.Sprintf("• 🏷️ **Zorunlu Rol:** <@&%s> rolüne sahip olmalısınız.", g.RequiredRoleID.String))
 			}
 		}
 		age := int(time.Since(snowflakeTime(user.ID)).Hours() / 24)
 		if age < g.MinAccountAgeDays {
-			missingReqs = append(missingReqs, fmt.Sprintf("• Hesabınız en az %d günlük olmalı (Mevcut: %d gün).", g.MinAccountAgeDays, age))
+			missingReqs = append(missingReqs, fmt.Sprintf("• ⏳ **Hesap Yaşı:** Discord hesabınız en az **%d** günlük olmalı (Mevcut: **%d** gün).", g.MinAccountAgeDays, age))
 		}
 		if g.MinInvites > 0 {
 			userInvites := b.db.UserNetInvites(g.GuildID, user.ID)
 			if userInvites < g.MinInvites {
-				missingReqs = append(missingReqs, fmt.Sprintf("• En az **%d** geçerli davetiniz olmalı (Mevcut net davetiniz: **%d**). 💡 Sunucuya arkadaşlarınızı davet ederek hemen katılabilirsiniz!", g.MinInvites, userInvites))
+				missingReqs = append(missingReqs, fmt.Sprintf("• 📨 **Davet Şartı:** En az **%d** geçerli davetiniz olmalı (Mevcut net: **%d**).\n  ↳ 💡 *Sunucuya bir arkadaşınızı davet ederek hemen katılabilirsiniz!*", g.MinInvites, userInvites))
 			}
 		}
 
 		if len(missingReqs) > 0 {
-			msg := fmt.Sprintf("⚠️ **Bu çekilişe şu an için katılamazsınız:**\n%s", strings.Join(missingReqs, "\n"))
-			return ephemeral(s, i, msg)
-		}
-
-		msg := fmt.Sprintf("ℹ️ **Bu çekilişe henüz katılmadınız!**\n\n"+
-			"🎁 **Ödül:** **%s**\n"+
-			"Katılmak için aşağıdaki **🎉 Katıl** butonuna tıklayabilirsiniz.\n"+
-			"Şu an katılırsanız kazanma şansınız yaklaşık **%s** olacaktır.",
-			g.Prize, giveawayChanceDetail(len(entries)+1, g.WinnerCount))
-		return ephemeral(s, i, msg)
-	}
-
-	multRole := b.db.ConfigString(g.GuildID, "giveaway_multiplier_role_id", "")
-	multVal := b.db.ConfigInt(g.GuildID, "giveaway_multiplier_value", 1)
-	userMultiplier := 1
-	if multRole != "" && multVal > 1 && i.Member != nil {
-		for _, r := range i.Member.Roles {
-			if r == multRole {
-				userMultiplier = multVal
-				break
+			em := &discordgo.MessageEmbed{
+				Title:       "⚠️ Katılım Şartları Karşılanmadı",
+				Color:       colorDanger,
+				Description: fmt.Sprintf("**%s** çekilişine şu anda katılamazsınız. Eksik koşullar:\n\n%s", g.Prize, strings.Join(missingReqs, "\n\n")),
+				Footer:      &discordgo.MessageEmbedFooter{Text: fmt.Sprintf("Çekiliş #%d • Adash Çekiliş Sistemi", g.ID)},
+				Timestamp:   time.Now().Format(time.RFC3339),
 			}
+			return ephemeralEmbed(s, i, em)
 		}
+
+		em := &discordgo.MessageEmbed{
+			Title:       "ℹ️ Çekilişe Henüz Katılmadınız",
+			Color:       colorPrimary,
+			Thumbnail:   &discordgo.MessageEmbedThumbnail{URL: user.AvatarURL("256")},
+			Description: fmt.Sprintf("**%s** çekilişine henüz katılmadınız.\nAşağıdaki **🎉 Katıl** butonuna tıklayarak hemen çekilişe dahil olabilirsiniz!", g.Prize),
+			Fields: []*discordgo.MessageEmbedField{
+				{Name: "🎁 Ödül", Value: g.Prize, Inline: true},
+				{Name: "🎲 Katılırsanız Şansınız", Value: giveawayChanceDetail(len(entries)+1, g.WinnerCount), Inline: true},
+				{Name: "👥 Mevcut Katılımcı", Value: fmt.Sprintf("**%d** kişi", len(entries)), Inline: true},
+				{Name: "⏰ Kalan Süre", Value: fmt.Sprintf("<t:%d:R>", g.EndsAt/1000), Inline: true},
+				{Name: "📅 Bitiş Zamanı", Value: fmt.Sprintf("<t:%d:F>", g.EndsAt/1000), Inline: true},
+			},
+			Footer:    &discordgo.MessageEmbedFooter{Text: fmt.Sprintf("Çekiliş #%d • Adash Çekiliş Sistemi", g.ID)},
+			Timestamp: time.Now().Format(time.RFC3339),
+		}
+		return ephemeralEmbed(s, i, em)
 	}
 
-	var statusLines []string
-	statusLines = append(statusLines, "🎯 **Çekiliş Katılım Bilgileriniz**", "")
-	statusLines = append(statusLines, "✅ **Durum:** Çekilişe katıldınız!")
-	statusLines = append(statusLines, fmt.Sprintf("🎁 **Ödül:** **%s**", g.Prize))
-	statusLines = append(statusLines, fmt.Sprintf("🏆 **Kazanan Sayısı:** **%d** kişi", g.WinnerCount))
-	statusLines = append(statusLines, fmt.Sprintf("👥 **Toplam Katılımcı:** **%d** kişi", len(entries)))
-	statusLines = append(statusLines, fmt.Sprintf("🎲 **Tahmini Kazanma Şansınız:** **%s**", giveawayChanceDetail(len(entries), g.WinnerCount)))
+	em := &discordgo.MessageEmbed{
+		Title:       "🎯 Çekiliş Katılım Bilgileriniz",
+		Color:       colorPrimary,
+		Thumbnail:   &discordgo.MessageEmbedThumbnail{URL: user.AvatarURL("256")},
+		Description: fmt.Sprintf("**%s** çekilişine başarıyla kayıtlısınız.", g.Prize),
+		Fields: []*discordgo.MessageEmbedField{
+			{Name: "🎁 Ödül", Value: g.Prize, Inline: true},
+			{Name: "🎲 Tahmini Kazanma Şansınız", Value: giveawayChanceDetail(len(entries), g.WinnerCount), Inline: true},
+			{Name: "👥 Toplam Katılımcı", Value: fmt.Sprintf("**%d** kişi", len(entries)), Inline: true},
+			{Name: "🏆 Kazanan Sayısı", Value: fmt.Sprintf("**%d** kişi", g.WinnerCount), Inline: true},
+			{Name: "⏰ Kalan Süre", Value: fmt.Sprintf("<t:%d:R>", g.EndsAt/1000), Inline: true},
+			{Name: "📅 Bitiş Zamanı", Value: fmt.Sprintf("<t:%d:F>", g.EndsAt/1000), Inline: true},
+		},
+		Footer:    &discordgo.MessageEmbedFooter{Text: fmt.Sprintf("Çekiliş #%d • Adash Çekiliş Sistemi", g.ID)},
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+
 	if userMultiplier > 1 {
-		statusLines = append(statusLines, fmt.Sprintf("🚀 **Çarpan Bonusu:** <@&%s> rolü sayesinde **%dx** kat şans!", multRole, userMultiplier))
+		em.Fields = append(em.Fields, &discordgo.MessageEmbedField{
+			Name:   "🚀 Çarpan Bonusu Aktif!",
+			Value:  fmt.Sprintf("🌟 <@&%s> rolü sayesinde çekilişte **%dx kat daha fazla kazanma şansı** *(%d kat bilet)* ile yarışıyorsunuz!", multRole, userMultiplier, userMultiplier),
+			Inline: false,
+		})
 	} else if multRole != "" && multVal > 1 {
-		statusLines = append(statusLines, fmt.Sprintf("💡 **Tavsiye:** <@&%s> rolünü alarak kazanma şansını **%dx** katına çıkarabilirsin!", multRole, multVal))
+		em.Fields = append(em.Fields, &discordgo.MessageEmbedField{
+			Name:   "💡 Kazanma Şansınızı Katlayın",
+			Value:  fmt.Sprintf("Sunucumuzda <@&%s> rolünü edinerek kazanma şansınızı **%dx katına** çıkarabilirsiniz!", multRole, multVal),
+			Inline: false,
+		})
 	}
-	statusLines = append(statusLines, fmt.Sprintf("⏰ **Sonuç:** <t:%d:R> *(<t:%d:F>)*", g.EndsAt/1000, g.EndsAt/1000))
-	statusLines = append(statusLines, "")
-	statusLines = append(statusLines, "> 🤫 *Pssst... Ben seni tutuyorum, aramızda kalsın kimseye söyleme! 😉*")
 
-	return ephemeral(s, i, strings.Join(statusLines, "\n"))
+	em.Fields = append(em.Fields, &discordgo.MessageEmbedField{
+		Name:   "🤫 Özel Fısıltı",
+		Value:  "> *Pssst... Ben seni tutuyorum, aramızda kalsın kimseye söyleme! 😉*",
+		Inline: false,
+	})
+
+	return ephemeralEmbed(s, i, em)
 }
 
 func (b *Bot) handleGiveawayParticipants(s *discordgo.Session, i *discordgo.InteractionCreate) error {
@@ -903,6 +1002,14 @@ func (b *Bot) handleGiveawayRerollButton(s *discordgo.Session, i *discordgo.Inte
 
 func (b *Bot) followInteraction(s *discordgo.Session, i *discordgo.InteractionCreate, text string) error {
 	_, e := s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{Content: text, Flags: discordgo.MessageFlagsEphemeral})
+	return e
+}
+
+func (b *Bot) followInteractionEmbed(s *discordgo.Session, i *discordgo.InteractionCreate, em *discordgo.MessageEmbed) error {
+	_, e := s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
+		Embeds: []*discordgo.MessageEmbed{em},
+		Flags:  discordgo.MessageFlagsEphemeral,
+	})
 	return e
 }
 
