@@ -143,6 +143,14 @@ func (b *Bot) runCommand(c *commandContext, name string, args []string) error {
 		return b.giveawayManage(c, args)
 	case "yetkili":
 		return b.staffCommand(c, args)
+	case "invite":
+		return b.inviteCommand(c, args)
+	case "inviteadd":
+		return b.inviteAddBonusCommand(c, args, false)
+	case "inviteremove":
+		return b.inviteAddBonusCommand(c, args, true)
+	case "topinvite":
+		return b.inviteLeaderboardCommand(c)
 	default:
 		return fmt.Errorf("bilinmeyen komut: %s", name)
 	}
@@ -155,7 +163,7 @@ func first(a []string, f string) string {
 }
 func (b *Bot) helpEmbed(guild, user string) *discordgo.MessageEmbed {
 	p := b.db.Prefix(guild)
-	return &discordgo.MessageEmbed{Title: "🤖 Adash Yardım", Description: "Aşağıdaki menüden kategori seçebilirsin. Prefix ve slash komutlarının tamamı kullanılabilir.", Color: colorPrimary, Fields: []*discordgo.MessageEmbedField{{Name: "🛡️ Moderasyon", Value: "ban, kick, mute, warn, temizle, cases"}, {Name: "🎫 Sistemler", Value: "ticket, çekiliş, kurulum, yetkili, oyunlar"}, {Name: "🔎 Araçlar", Value: "tdk, webara, avatar, sunucu, kullanıcı"}, {Name: "🎮 Eğlence", Value: "zar, yazı tura, 8ball"}, {Name: "Prefix", Value: "`" + p + "`", Inline: true}}, Footer: &discordgo.MessageEmbedFooter{Text: "Yalnızca paneli açan kişi kullanabilir."}}
+	return &discordgo.MessageEmbed{Title: "🤖 Adash Yardım", Description: "Aşağıdaki menüden kategori seçebilirsin. Prefix ve slash komutlarının tamamı kullanılabilir.", Color: colorPrimary, Fields: []*discordgo.MessageEmbedField{{Name: "🛡️ Moderasyon", Value: "ban, kick, mute, warn, temizle, cases"}, {Name: "🎫 Sistemler", Value: "ticket, çekiliş, kurulum, yetkili, davet, oyunlar"}, {Name: "🔎 Araçlar", Value: "tdk, webara, avatar, sunucu, kullanıcı, topdavet"}, {Name: "🎮 Eğlence", Value: "zar, yazı tura, 8ball"}, {Name: "Prefix", Value: "`" + p + "`", Inline: true}}, Footer: &discordgo.MessageEmbedFooter{Text: "Yalnızca paneli açan kişi kullanabilir."}}
 }
 func helpMenu(user string) discordgo.ActionsRow {
 	return row(discordgo.SelectMenu{CustomID: "help_menu:" + user, Placeholder: "Yardım kategorisi seç", Options: []discordgo.SelectMenuOption{{Label: "Genel", Value: "genel", Emoji: &discordgo.ComponentEmoji{Name: "🏠"}}, {Label: "Moderasyon", Value: "moderasyon", Emoji: &discordgo.ComponentEmoji{Name: "🛡️"}}, {Label: "Ticket ve Çekiliş", Value: "sistemler", Emoji: &discordgo.ComponentEmoji{Name: "🎫"}}, {Label: "Araçlar ve Eğlence", Value: "araclar", Emoji: &discordgo.ComponentEmoji{Name: "🧰"}}}})

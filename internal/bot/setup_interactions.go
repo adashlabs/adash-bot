@@ -160,6 +160,12 @@ func (b *Bot) modalSubmit(s *discordgo.Session, i *discordgo.InteractionCreate) 
 			return fmt.Errorf("hesap yaşı 0–365 olmalı")
 		}
 		_ = b.db.SetConfig(i.GuildID, "giveaway_min_account_age_days", n)
+		if invStr, ok := v["min_invites"]; ok && invStr != "" {
+			invN, err := strconv.Atoi(invStr)
+			if err == nil && invN >= 0 && invN <= 1000 {
+				_ = b.db.SetConfig(i.GuildID, "giveaway_min_invites", invN)
+			}
+		}
 		return ephemeral(s, i, "Çekiliş kuralları kaydedildi.")
 	case id == "setup_giveaway_create_modal":
 		d, e := parseDuration(v["duration"])

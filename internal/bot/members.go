@@ -27,6 +27,7 @@ func (b *Bot) memberAdd(s *discordgo.Session, e *discordgo.GuildMemberAdd) {
 		return
 	}
 	_ = b.db.RegisterUser(e.User.ID, e.User.Username, e.User.Discriminator)
+	b.trackMemberJoin(s, e.GuildID, e.User)
 	settings, err := b.db.Settings(e.GuildID)
 	if err != nil {
 		return
@@ -43,6 +44,7 @@ func (b *Bot) memberRemove(s *discordgo.Session, e *discordgo.GuildMemberRemove)
 	if e == nil || e.User == nil || !validDiscordID(e.User.ID) {
 		return
 	}
+	_, _ = b.db.RecordMemberLeave(e.GuildID, e.User.ID)
 	settings, err := b.db.Settings(e.GuildID)
 	if err == nil && settings.FarewellEnabled && settings.FarewellChannelID.Valid {
 		b.sendGreeting(s, e.GuildID, settings.FarewellChannelID.String, e.User, settings.FarewellMessage, false)

@@ -47,14 +47,14 @@ func (d *DB) CloseTicket(channel, user, reason string) (bool, error) {
 
 func scanGiveaway(row interface{ Scan(...any) error }) (Giveaway, error) {
 	var g Giveaway
-	e := row.Scan(&g.ID, &g.GuildID, &g.ChannelID, &g.MessageID, &g.HostID, &g.Prize, &g.WinnerCount, &g.RequiredRoleID, &g.MinAccountAgeDays, &g.EndsAt, &g.EndedAt)
+	e := row.Scan(&g.ID, &g.GuildID, &g.ChannelID, &g.MessageID, &g.HostID, &g.Prize, &g.WinnerCount, &g.RequiredRoleID, &g.MinAccountAgeDays, &g.MinInvites, &g.EndsAt, &g.EndedAt)
 	return g, e
 }
 
-const giveawayCols = `id,guild_id,channel_id,message_id,host_id,prize,winner_count,required_role_id,min_account_age_days,ends_at,ended_at`
+const giveawayCols = `id,guild_id,channel_id,message_id,host_id,prize,winner_count,required_role_id,min_account_age_days,min_invites,ends_at,ended_at`
 
-func (d *DB) CreateGiveaway(guild, channel, message, host, prize string, winners int, role string, minDays int, ends int64) (int64, error) {
-	r, e := d.sql.Exec(`INSERT INTO giveaways(guild_id,channel_id,message_id,host_id,prize,winner_count,required_role_id,min_account_age_days,ends_at) VALUES(?,?,?,?,?,?,?,?,?)`, guild, channel, message, host, prize, winners, null(role), minDays, ends)
+func (d *DB) CreateGiveaway(guild, channel, message, host, prize string, winners int, role string, minDays, minInvites int, ends int64) (int64, error) {
+	r, e := d.sql.Exec(`INSERT INTO giveaways(guild_id,channel_id,message_id,host_id,prize,winner_count,required_role_id,min_account_age_days,min_invites,ends_at) VALUES(?,?,?,?,?,?,?,?,?,?)`, guild, channel, message, host, prize, winners, null(role), minDays, minInvites, ends)
 	if e != nil {
 		return 0, e
 	}
@@ -119,7 +119,7 @@ func (d *DB) GiveawayEntries(id int64) ([]string, error) {
 }
 func (d *DB) TableCounts() (map[string]int64, error) {
 	out := map[string]int64{}
-	for _, t := range []string{"guilds", "users", "guild_settings", "command_logs", "mod_logs", "warnings", "game_states", "word_game_used", "guild_config", "tickets", "giveaways", "giveaway_entries", "staff_applications"} {
+	for _, t := range []string{"guilds", "users", "guild_settings", "command_logs", "mod_logs", "warnings", "game_states", "word_game_used", "guild_config", "tickets", "giveaways", "giveaway_entries", "staff_applications", "invites", "invited_members"} {
 		var n int64
 		if e := d.sql.QueryRow(`SELECT COUNT(*) FROM ` + t).Scan(&n); e != nil {
 			return nil, e

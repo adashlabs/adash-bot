@@ -102,6 +102,7 @@ func (b *Bot) setupModal(ses *discordgo.Session, i *discordgo.InteractionCreate,
 		title = "Çekiliş Katılım Kuralları"
 		id = "setup_giveaway_modal:" + guild
 		add("min_account_age_days", "Minimum hesap yaşı (0-365)", strconv.Itoa(b.db.ConfigInt(guild, "giveaway_min_account_age_days", 0)), discordgo.TextInputShort, 3)
+		add("min_invites", "Minimum davet sayısı (0-1000)", strconv.Itoa(b.db.ConfigInt(guild, "giveaway_min_invites", 0)), discordgo.TextInputShort, 4)
 	case "create":
 		title = "🎉 Çekiliş Oluştur"
 		id = "setup_giveaway_create_modal"

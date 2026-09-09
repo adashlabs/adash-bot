@@ -25,6 +25,7 @@ type Bot struct {
 	searches       map[string]*searchSession
 	gameLocks      sync.Map
 	giveawayTimers map[int64]*time.Timer
+	invitesCache   sync.Map
 	ai             *aiClient
 }
 type confirmation struct {
@@ -63,7 +64,7 @@ func New(cfg config.Config, db *database.DB) (*Bot, error) {
 	dg.State.TrackVoice = false
 	dg.State.TrackPresences = false
 	go b.janitor()
-	dg.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildMessages | discordgo.IntentsMessageContent | discordgo.IntentsGuildMembers
+	dg.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildMessages | discordgo.IntentsMessageContent | discordgo.IntentsGuildMembers | discordgo.IntentsGuildInvites
 	dg.AddHandler(b.ready)
 	dg.AddHandler(func(s *discordgo.Session, r *discordgo.Resumed) {
 		log.Println("Discord oturumu başarıyla devam ettirildi (Resumed)")
@@ -76,6 +77,8 @@ func New(cfg config.Config, db *database.DB) (*Bot, error) {
 	dg.AddHandler(b.guildCreate)
 	dg.AddHandler(b.memberAdd)
 	dg.AddHandler(b.memberRemove)
+	dg.AddHandler(b.inviteCreate)
+	dg.AddHandler(b.inviteDelete)
 	return b, nil
 }
 func (b *Bot) janitor() {
@@ -124,6 +127,7 @@ func (b *Bot) ready(s *discordgo.Session, r *discordgo.Ready) {
 		if full, e := s.Guild(g.ID); e == nil {
 			_ = b.db.RegisterGuild(g.ID, full.Name)
 		}
+		b.cacheGuildInvites(s, g.ID)
 	}
 	if _, e := s.ApplicationCommandBulkOverwrite(r.Application.ID, "", slashCommands()); e != nil {
 		log.Printf("slash komut kaydı: %v", e)
@@ -132,6 +136,7 @@ func (b *Bot) ready(s *discordgo.Session, r *discordgo.Ready) {
 }
 func (b *Bot) guildCreate(s *discordgo.Session, g *discordgo.GuildCreate) {
 	_ = b.db.RegisterGuild(g.ID, g.Name)
+	b.cacheGuildInvites(s, g.ID)
 }
 func (b *Bot) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author == nil || m.Author.Bot || m.GuildID == "" {
@@ -162,7 +167,7 @@ func (b *Bot) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 	name := strings.ToLower(parts[0])
 	args := parts[1:]
-	aliases := map[string]string{"sil": "clear", "temizle": "clear", "kurulum": "setup", "ayarlar": "setup", "yardım": "help", "yardim": "help", "komutlar": "help", "çekiliş": "giveaway", "cekilis": "giveaway", "çekilişyönet": "giveawaymanage", "cekilisyonet": "giveawaymanage", "uyar": "warn", "uyarı": "warn", "uyari": "warn", "uyarılar": "warnings", "uyarilar": "warnings", "uyarıtemizle": "clearwarns", "uyaritemizle": "clearwarns", "yasakla": "ban", "at": "kick", "sustur": "mute", "timeout": "mute", "susturmaaç": "unmute", "yasakaç": "unban", "yasakac": "unban", "vakalar": "cases", "modlog": "cases", "modayar": "modconfig", "kilit": "lock", "yavaşmod": "slowmode", "yavasmod": "slowmode", "kullanıcı": "userinfo", "kullanicibilgi": "userinfo", "sunucu": "serverinfo", "sunucubilgi": "serverinfo", "oyunlar": "games", "oyundurumu": "games", "yazıtura": "coinflip", "yazitura": "coinflip", "sihirliküre": "8ball", "sihirlikure": "8ball", "sekiztop": "8ball", "zar": "roll", "pp": "avatar", "sözlük": "tdk", "sozluk": "tdk", "webara": "wsearch", "itiraz": "appeal", "talep": "ticket", "ticketkurulum": "ticketsetup", "destekkur": "ticketsetup", "embedbuilder": "embed", "yetkilialim": "yetkili", "yetkilialım": "yetkili", "yetkili-alim": "yetkili", "yetkili-alım": "yetkili", "yetkilialimi": "yetkili", "yetkilialımı": "yetkili", "basvuru": "yetkili", "başvuru": "yetkili"}
+	aliases := map[string]string{"sil": "clear", "temizle": "clear", "kurulum": "setup", "ayarlar": "setup", "yardım": "help", "yardim": "help", "komutlar": "help", "çekiliş": "giveaway", "cekilis": "giveaway", "çekilişyönet": "giveawaymanage", "cekilisyonet": "giveawaymanage", "uyar": "warn", "uyarı": "warn", "uyari": "warn", "uyarılar": "warnings", "uyarilar": "warnings", "uyarıtemizle": "clearwarns", "uyaritemizle": "clearwarns", "yasakla": "ban", "at": "kick", "sustur": "mute", "timeout": "mute", "susturmaaç": "unmute", "yasakaç": "unban", "yasakac": "unban", "vakalar": "cases", "modlog": "cases", "modayar": "modconfig", "kilit": "lock", "yavaşmod": "slowmode", "yavasmod": "slowmode", "kullanıcı": "userinfo", "kullanicibilgi": "userinfo", "sunucu": "serverinfo", "sunucubilgi": "serverinfo", "oyunlar": "games", "oyundurumu": "games", "yazıtura": "coinflip", "yazitura": "coinflip", "sihirliküre": "8ball", "sihirlikure": "8ball", "sekiztop": "8ball", "zar": "roll", "pp": "avatar", "sözlük": "tdk", "sozluk": "tdk", "webara": "wsearch", "itiraz": "appeal", "talep": "ticket", "ticketkurulum": "ticketsetup", "destekkur": "ticketsetup", "embedbuilder": "embed", "yetkilialim": "yetkili", "yetkilialım": "yetkili", "yetkili-alim": "yetkili", "yetkili-alım": "yetkili", "yetkilialimi": "yetkili", "yetkilialımı": "yetkili", "basvuru": "yetkili", "başvuru": "yetkili", "davet": "invite", "davetler": "topinvite", "topdavet": "topinvite", "davetsıralaması": "topinvite", "davetsiralamasi": "topinvite", "davetekle": "inviteadd", "davet-ekle": "inviteadd", "davetsil": "inviteremove", "davet-sil": "inviteremove", "invite": "invite", "invites": "topinvite"}
 	if x := aliases[name]; x != "" {
 		name = x
 	}

@@ -166,6 +166,10 @@ func slashArgs(name, sub string, o map[string]string) (string, []string) {
 			return "yetkili", []string{sub}
 		}
 		return "yetkili", nil
+	case "davet":
+		return "invite", compact(o["kullanici"])
+	case "topdavet":
+		return "topinvite", nil
 	default:
 		return name, nil
 	}
@@ -287,6 +291,6 @@ func (b *Bot) confirmComponent(s *discordgo.Session, i *discordgo.InteractionCre
 }
 func (b *Bot) helpCategory(guild, section string) *discordgo.MessageEmbed {
 	p := b.db.Prefix(guild)
-	items := map[string]string{"genel": "`ping`, `yardim`, `kurulum`, `prefix`", "moderasyon": "`ban`, `kick`, `mute`, `unmute`, `warn`, `uyarilar`, `uyaritemizle`, `temizle`, `kilit`, `yavasmod`, `cases`, `itiraz`", "sistemler": "`ticketsetup`, `ticket`, `cekilis`, `cekilisyonet`, `yetkili`, `oyunlar`", "araclar": "`tdk`, `webara`, `kullanici`, `sunucu`, `avatar`, `zar`, `yazitura`, `sekiztop`, `embed`"}
+	items := map[string]string{"genel": "`ping`, `yardim`, `kurulum`, `prefix`", "moderasyon": "`ban`, `kick`, `mute`, `unmute`, `warn`, `uyarilar`, `uyaritemizle`, `temizle`, `kilit`, `yavasmod`, `cases`, `itiraz`", "sistemler": "`ticketsetup`, `ticket`, `cekilis`, `cekilisyonet`, `yetkili`, `davet`, `topdavet`, `oyunlar`", "araclar": "`tdk`, `webara`, `kullanici`, `sunucu`, `avatar`, `zar`, `yazitura`, `sekiztop`, `embed`"}
 	return embed("📖 "+strings.ToUpper(section), items[section]+"\n\nPrefix: `"+p+"`", colorPrimary)
 }
