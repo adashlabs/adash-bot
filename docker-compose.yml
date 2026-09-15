@@ -27,7 +27,8 @@ services:
     container_name: adash-dpi
     restart: unless-stopped
     environment:
-      BYEDPI_ARGS: "--split 1 --disorder 3+s --auto=torst --tlsrec 1+s"
+      BYEDPI_ARGS: "--tlsrec 1+s --split 1"
+      GOMEMLIMIT: 40MiB
     expose:
       - "8080"
       - "1080"
@@ -37,7 +38,7 @@ services:
       timeout: 3s
       retries: 3
       start_period: 2s
-    mem_limit: 32m
+    mem_limit: 64m
     networks:
       default:
         aliases:

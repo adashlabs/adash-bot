@@ -33,10 +33,29 @@ type DoHResolver struct {
 	cache     map[string]dnsCacheEntry
 }
 
+var staticDiscordIPs = map[string][]net.IP{
+	"discord.com": {
+		net.ParseIP("162.159.137.232"),
+		net.ParseIP("162.159.138.232"),
+		net.ParseIP("162.159.128.233"),
+	},
+	"gateway.discord.gg": {
+		net.ParseIP("162.159.133.234"),
+		net.ParseIP("162.159.135.234"),
+		net.ParseIP("162.159.134.234"),
+	},
+	"cdn.discordapp.com": {
+		net.ParseIP("162.159.130.233"),
+		net.ParseIP("162.159.133.233"),
+		net.ParseIP("162.159.135.233"),
+	},
+}
+
 func newDoHResolver() *DoHResolver {
 	// Standard HTTP transport using direct IP addresses for DoH endpoints
 	// to avoid needing a bootstrap DNS server.
 	transport := &http.Transport{
+		ForceAttemptHTTP2: true,
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: false,
 		},
@@ -54,7 +73,7 @@ func newDoHResolver() *DoHResolver {
 			"https://1.1.1.1/dns-query",
 			"https://1.0.0.1/dns-query",
 			"https://8.8.8.8/dns-query",
-			"https://9.9.9.9/dns-query",
+			"https://8.8.4.4/dns-query",
 		},
 		cache: make(map[string]dnsCacheEntry),
 	}
@@ -164,7 +183,10 @@ func (r *DoHResolver) Resolve(ctx context.Context, domain string) (net.IP, error
 		return entry.ips[0], nil
 	}
 
-	// Query DoH
+	// Query DoH concurrently with cancellable context
+	queryCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	queryPacket := r.buildDNSQuery(domain)
 
 	type result struct {
@@ -176,7 +198,7 @@ func (r *DoHResolver) Resolve(ctx context.Context, domain string) (net.IP, error
 
 	for _, ep := range r.endpoints {
 		go func(endpoint string) {
-			req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(queryPacket))
+			req, err := http.NewRequestWithContext(queryCtx, "POST", endpoint, bytes.NewReader(queryPacket))
 			if err != nil {
 				resChan <- result{err: err}
 				return
@@ -211,11 +233,16 @@ func (r *DoHResolver) Resolve(ctx context.Context, domain string) (net.IP, error
 	for i := 0; i < len(r.endpoints); i++ {
 		res := <-resChan
 		if res.err == nil && len(res.ips) > 0 {
+			cancel() // Cancel remaining queries immediately to close sockets
+			cacheTTL := res.ttl
+			if cacheTTL < 1*time.Hour {
+				cacheTTL = 1 * time.Hour
+			}
 			// Update cache
 			r.mu.Lock()
 			r.cache[domain] = dnsCacheEntry{
 				ips:     res.ips,
-				expires: time.Now().Add(res.ttl),
+				expires: time.Now().Add(cacheTTL),
 			}
 			r.mu.Unlock()
 			return res.ips[0], nil
@@ -225,7 +252,23 @@ func (r *DoHResolver) Resolve(ctx context.Context, domain string) (net.IP, error
 		}
 	}
 
-	// Fallback to standard system lookup if DoH fails
+	// Fallback 1: Return expired cached entry if available
+	if found && len(entry.ips) > 0 {
+		return entry.ips[0], nil
+	}
+
+	// Fallback 2: Static known Discord IPs
+	if fallbackIPs, ok := staticDiscordIPs[domain]; ok && len(fallbackIPs) > 0 {
+		r.mu.Lock()
+		r.cache[domain] = dnsCacheEntry{
+			ips:     fallbackIPs,
+			expires: time.Now().Add(1 * time.Hour),
+		}
+		r.mu.Unlock()
+		return fallbackIPs[0], nil
+	}
+
+	// Fallback 3: Standard system lookup if DoH fails
 	sysIPs, err := net.LookupIP(domain)
 	if err == nil {
 		for _, ip := range sysIPs {
@@ -248,9 +291,17 @@ func (r *DoHResolver) Resolve(ctx context.Context, domain string) (net.IP, error
 }
 
 func dialSOCKS5(socksAddr string, targetHost string, targetPort int) (net.Conn, error) {
-	conn, err := net.DialTimeout("tcp", socksAddr, 10*time.Second)
+	dialer := net.Dialer{
+		Timeout:   10 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+	conn, err := dialer.Dial("tcp", socksAddr)
 	if err != nil {
 		return nil, err
+	}
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		_ = tcpConn.SetKeepAlive(true)
+		_ = tcpConn.SetKeepAlivePeriod(30 * time.Second)
 	}
 
 	// SOCKS5 Handshake: Version 5, 1 Auth Method, Method 0x00 (No Auth)
@@ -337,6 +388,37 @@ func dialSOCKS5(socksAddr string, targetHost string, targetPort int) (net.Conn, 
 	return conn, nil
 }
 
+func tunnel(c1, c2 net.Conn) {
+	if tc, ok := c1.(*net.TCPConn); ok {
+		_ = tc.SetKeepAlive(true)
+		_ = tc.SetKeepAlivePeriod(30 * time.Second)
+	}
+	if tc, ok := c2.(*net.TCPConn); ok {
+		_ = tc.SetKeepAlive(true)
+		_ = tc.SetKeepAlivePeriod(30 * time.Second)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	pipe := func(dst, src net.Conn) {
+		defer wg.Done()
+		_, _ = io.Copy(dst, src)
+		if tc, ok := dst.(*net.TCPConn); ok {
+			_ = tc.CloseWrite()
+		} else if cw, ok := dst.(interface{ CloseWrite() error }); ok {
+			_ = cw.CloseWrite()
+		} else {
+			_ = dst.Close()
+		}
+	}
+
+	go pipe(c1, c2)
+	go pipe(c2, c1)
+
+	wg.Wait()
+}
+
 type ProxyBridge struct {
 	doh       *DoHResolver
 	socksAddr string
@@ -406,17 +488,7 @@ func (p *ProxyBridge) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Tunnel bidirectionally
-	errc := make(chan error, 2)
-	go func() {
-		_, err := io.Copy(socksConn, clientConn)
-		errc <- err
-	}()
-	go func() {
-		_, err := io.Copy(clientConn, socksConn)
-		errc <- err
-	}()
-
-	<-errc
+	tunnel(socksConn, clientConn)
 }
 
 func (p *ProxyBridge) handleSOCKS5(clientConn net.Conn) {
@@ -509,17 +581,7 @@ func (p *ProxyBridge) handleSOCKS5(clientConn net.Conn) {
 		return
 	}
 
-	errc := make(chan error, 2)
-	go func() {
-		_, err := io.Copy(socksConn, clientConn)
-		errc <- err
-	}()
-	go func() {
-		_, err := io.Copy(clientConn, socksConn)
-		errc <- err
-	}()
-
-	<-errc
+	tunnel(socksConn, clientConn)
 }
 
 func startByeDPI(ctx context.Context, ciadpiBin, socksAddr, argsStr string) {
@@ -577,7 +639,7 @@ func main() {
 
 	byedpiArgs := os.Getenv("BYEDPI_ARGS")
 	if byedpiArgs == "" {
-		byedpiArgs = "--split 1 --disorder 3+s --auto=torst --tlsrec 1+s"
+		byedpiArgs = "--tlsrec 1+s --split 1"
 	}
 
 	ciadpiBin := os.Getenv("CIADPI_BIN")

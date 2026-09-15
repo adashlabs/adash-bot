@@ -63,6 +63,14 @@ func New(cfg config.Config, db *database.DB) (*Bot, error) {
 	dg.State.TrackStickers = false
 	dg.State.TrackVoice = false
 	dg.State.TrackPresences = false
+	dg.ShouldReconnectOnError = true
+	dg.ShouldRetryOnRateLimit = true
+	if dg.Client != nil {
+		dg.Client.Timeout = 20 * time.Second
+	}
+	if dg.Dialer != nil {
+		dg.Dialer.HandshakeTimeout = 30 * time.Second
+	}
 	go b.janitor()
 	dg.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildMessages | discordgo.IntentsMessageContent | discordgo.IntentsGuildMembers | discordgo.IntentsGuildInvites
 	dg.AddHandler(b.ready)
@@ -111,7 +119,18 @@ func (b *Bot) janitor() {
 	}
 }
 
-func (b *Bot) Start() error { return b.dg.Open() }
+func (b *Bot) Start() error {
+	var err error
+	for attempt := 1; attempt <= 5; attempt++ {
+		err = b.dg.Open()
+		if err == nil {
+			return nil
+		}
+		log.Printf("Discord bağlantı denemesi %d/5 başarısız: %v (yeniden deneniyor...)", attempt, err)
+		time.Sleep(time.Duration(attempt*2) * time.Second)
+	}
+	return fmt.Errorf("discord bağlantısı kurulamadı: %w", err)
+}
 func (b *Bot) Close() {
 	b.mu.Lock()
 	for _, t := range b.giveawayTimers {
